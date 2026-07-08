@@ -1,0 +1,148 @@
+name: hermes-vc-gateway
+description: >-
+  Heavy MCP servers shared across the operator's agents — code-review-graph,
+  DocumentDB, context7, pencil, shadcn, Astro, DeepWiki, and the
+  compliance-hardened filesystem upstream (fs; see docs/MCP-PROXY.md
+  §Filesystem upstream). Each agent declares one mcpServers entry
+  pointing at this profile via X-Profile: hermes-vc-gateway.
+  Upstreams are initialized lazily on first use (tools/list for discovery,
+  tools/call for env-specific forks; see the gateway spec's §Fork
+  semantics); the agent spawns zero subprocesses of its own.
+
+upstreams:
+  - key: code-review-graph
+    transport: stdio
+    command: uvx
+    args: ["code-review-graph", "serve"]
+    env: {}
+    inherit_os_env:
+      - PATH
+      - HOME
+      - USER
+      - LANG
+      - LC_ALL
+      - TZ
+      - UV_CACHE_DIR          # operator sets this to /tmp/uv on shared hosts
+    call_timeout_seconds: 30
+
+  - key: DocumentDB
+    transport: stdio
+    command: npx
+    args: ["-y", "awslabs.documentdb-mcp-server@latest"]
+    env:
+      DOCUMENTDB_CONNECTION_STRING: >-
+        MongoDB connection string for the local DocumentDB instance.
+        Operators on the workstation pass this via ?env=DocumentDB.DOCUMENTDB_CONNECTION_STRING=.
+        It is intentionally not inherited from the gateway shell environment.
+    inherit_os_env:
+      - PATH
+      - HOME
+      - USER
+      - LANG
+      - LC_ALL
+      - TZ
+      - NODE_EXTRA_CA_CERTS
+      - NPM_CONFIG_CACHE
+    call_timeout_seconds: 15
+
+  - key: context7
+    transport: stdio
+    command: npx
+    args: ["-y", "@upstash/context7-mcp"]
+    env: {}
+    inherit_os_env:
+      - PATH
+      - HOME
+      - USER
+      - LANG
+      - LC_ALL
+      - TZ
+      - NPM_CONFIG_CACHE
+    call_timeout_seconds: 30
+
+  - key: pencil
+    transport: stdio
+    command: "C:/Program Files/Pencil/pencil-mcp.exe"
+    args: []
+    env: {}
+    # NOTE: pencil is a Windows .exe. When the gateway host is WSL, it
+    # must launch pencil via Windows interop (the .exe suffix makes WSL
+    # forward to the Windows binary automatically). The env vars below
+    # are Windows-side; the gateway filters inherit_os_env against its
+    # own (Linux) process env, so these will be ABSENT unless the
+    # operator exports them in the gateway's startup script (e.g.
+    # `USERPROFILE="C:\\Users\\operator"` before starting the gateway)
+    # OR the gateway is run from native Windows Python. If pencil
+    # misbehaves under WSL, run the gateway natively on Windows or
+    # drop pencil from this profile.
+    inherit_os_env:
+      - PATH              # pencil.exe may shell out to other Windows binaries
+      - USERPROFILE
+      - LOCALAPPDATA
+      - TEMP
+      - SYSTEMROOT
+    call_timeout_seconds: 60
+
+  - key: shadcn
+    transport: stdio
+    command: npx
+    args: ["-y", "@shadcn-ui/mcp"]
+    env: {}
+    inherit_os_env:
+      - PATH
+      - HOME
+      - USER
+      - LANG
+      - LC_ALL
+      - TZ
+      - NPM_CONFIG_CACHE
+    call_timeout_seconds: 30
+
+  - key: Astro
+    transport: streamable_http
+    url: https://mcp.example.com/astro
+    headers: {}
+    env:
+      ASTRO_TOKEN: >-
+        Bearer token for the Astro docs MCP server. Inherit via
+        the gateway's process environment (AWS Secrets Manager sync
+        is out of scope for this spec — operators wire their own
+        secrets loader).
+    inherit_os_env: []
+    call_timeout_seconds: 60
+
+  - key: DeepWiki
+    transport: streamable_http
+    url: https://mcp.deepwiki.com/mcp   # streamable HTTP endpoint; /sse is the deprecated SSE transport
+    headers: {}
+    env: {}
+    inherit_os_env: []
+    call_timeout_seconds: 60
+
+  # 8th upstream: compliance-hardened filesystem server.
+  # See docs/MCP-PROXY.md §Filesystem upstream for the full contract.
+  # The gateway treats the `fs:` block as opaque and serialises it into
+  # $IRIGATE_UPSTREAM_CONFIG for the upstream subprocess. The upstream
+  # itself enforces the deny-list, path-jail, and size limits; the
+  # gateway does NOT inspect tool-call arguments or responses.
+  - key: fs
+    transport: stdio
+    command: python3
+    args: ["-m", "irigate.mcp_filesystem"]
+    env: {}
+    fs:
+      allowed_roots:
+        - "$HERMES_KANBAN_WORKSPACE"   # resolved at fork time; empty string when env var unset
+        - "~/.irigate/notes"            # operator-curated notes dir (read-only by default)
+      blocked_patterns_extra:
+        - "*.local.json"                # operator adds to the default deny list
+      max_file_size_mb: 10
+      read_only: true                   # read_file + list + search only; no write
+    inherit_os_env:
+      - PATH
+      - HOME
+      - LANG
+      - LC_ALL
+      - TZ
+    ttl_seconds: 300
+    call_timeout_seconds: 15

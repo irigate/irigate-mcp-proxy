@@ -1,0 +1,52 @@
+name: smoke-test
+description: >-
+  Single upstream for irigate-mcp-proxy verification. The echo
+  upstream is a tiny stdio MCP server that ships with irigate and
+  requires no external backend, no network access, no credentials.
+  Used by irigate's own §Verification checklist (steps 12 (TTL
+  reaper) and 13 (hard cap 429)) to prove the gateway's fork pool,
+  signal handling, and reaper surface without needing DocumentDB or
+  any other real upstream reachable. (Verification steps 2, 3, 5, 6,
+  7, 10, 11 in docs/MCP-PROXY.md use the hermes-vc-gateway profile,
+  not smoke-test.)
+
+  RUN:
+    PYTHONPATH=~/.irigate/lib python3 -m irigate.mcp_smoke_echo &
+                                                # standalone, for manual curl
+    python3 ~/.irigate/bin/irigate_mcp_proxy.py \
+        --profiles-dir ~/.irigate/profiles/ \
+        --port 8000 start --foreground &
+
+  Then exercise with a real MCP SSE client (the SSE stream announces the
+  session-bound /messages?session_id=<id> endpoint; do not POST directly
+  to /messages without that session id):
+    python3 - <<'PY'
+    import anyio
+    from mcp import ClientSession
+    from mcp.client.sse import sse_client
+
+    async def main():
+        async with sse_client('http://localhost:8000/sse?profile=smoke-test') as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                tools = await session.list_tools()
+                print([tool.name for tool in tools.tools])
+
+    anyio.run(main)
+    PY
+
+upstreams:
+  - key: echo
+    transport: stdio
+    command: python3
+    args: ["-m", "irigate.mcp_smoke_echo"]
+    env:
+      TEST_KEY: "Test env var for verification steps 12 (TTL reaper) and 13 (hard cap 429). Operators supply distinct values via ?env=echo.TEST_KEY=value_N to force unique env_fingerprints."
+    inherit_os_env:
+      - PATH
+      - HOME
+      - LANG
+      - LC_ALL
+      - TZ
+    ttl_seconds: 30        # cheap to spawn; short TTL so verification step 12 finishes in seconds
+    call_timeout_seconds: 10
