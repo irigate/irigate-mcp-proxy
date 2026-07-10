@@ -4,6 +4,9 @@ import argparse
 import sys
 from collections.abc import Sequence
 
+import uvicorn
+
+from irigate.app import create_app
 from irigate.config import ConfigurationError, load_config
 
 
@@ -27,18 +30,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
 
-    if not args.check:
-        print("broker runtime is not implemented; use --check", file=sys.stderr)
-        return 2
+    if args.check:
+        upstreams = ",".join(config.upstreams)
+        environment = ",".join(sorted(config.environment_names)) or "none"
+        print(f"profile={config.name}")
+        print(f"listen={config.host}:{config.port}")
+        print(f"upstreams={upstreams}")
+        print(f"environment={environment}")
+        if config.runtime_report_path is not None:
+            print(f"runtime_report={config.runtime_report_path}")
+        return 0
 
-    upstreams = ",".join(config.upstreams)
-    environment = ",".join(sorted(config.environment_names)) or "none"
-    print(f"profile={config.name}")
-    print(f"listen={config.host}:{config.port}")
-    print(f"upstreams={upstreams}")
-    print(f"environment={environment}")
-    if config.runtime_report_path is not None:
-        print(f"runtime_report={config.runtime_report_path}")
+    uvicorn.run(create_app(config), host=config.host, port=config.port)
     return 0
 
 

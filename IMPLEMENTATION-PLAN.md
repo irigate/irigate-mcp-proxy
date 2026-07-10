@@ -15,7 +15,7 @@ Validate and, only if the evidence supports it, implement a loopback-only MCP br
 
 - [x] Phase 0 — transport and sharing spikes
 - [x] Phase 1 — package and configuration contract
-- [ ] Phase 2 — broker core and deterministic routing
+- [x] Phase 2 — broker core and deterministic routing
 - [ ] Phase 3 — concurrency, isolation, and shutdown
 - [ ] Phase 4 — runtime qualification and goal report
 - [ ] Phase 5 — metadata audit trail
@@ -237,13 +237,13 @@ Proxy MCP tools without ambiguous routing or implicit process sharing.
 
 ### Work
 
-1. [ ] Write failing end-to-end tests for downstream `initialize` and Origin validation.
-2. [ ] Implement the loopback Streamable HTTP application.
-3. [ ] Write a failing test that expects `echo__repeat` from an upstream key `echo`.
-4. [ ] Implement upstream initialization and namespaced `tools/list` aggregation.
-5. [ ] Write failing tests for unknown prefixes, duplicate names, upstream initialization failure, call timeout, and upstream crash.
-6. [ ] Implement exact prefix-based dispatch and isolate upstream failures.
-7. [ ] Add per-upstream lifecycle handling for isolated and explicitly shared instances.
+1. [x] Write failing end-to-end tests for downstream `initialize` and Origin validation.
+2. [x] Implement the loopback Streamable HTTP application.
+3. [x] Write a failing test that expects `echo__repeat` from an upstream key `echo`.
+4. [x] Implement upstream initialization and namespaced `tools/list` aggregation.
+5. [x] Write failing tests for unknown prefixes, duplicate names, upstream initialization failure, call timeout, and upstream crash.
+6. [x] Implement exact prefix-based dispatch and isolate upstream failures.
+7. [x] Add per-upstream lifecycle handling for isolated and explicitly shared instances.
 
 ### Verification
 
@@ -252,6 +252,13 @@ python -m pytest tests/test_transport.py tests/test_routing.py tests/test_broker
 ```
 
 Expected: all tests pass; no test relies on first-match routing or credentials in request URLs.
+
+Gate verdict: `VALIDATED`.
+
+- Phase 2 transport, routing, and broker suite: 10 passed.
+- The full regression suite: 32 passed.
+- Streamable HTTP initializes on loopback, rejects malformed/remote origins, and accepts the explicit no-Origin local-client policy.
+- Exposed tools use exact `<upstream-key>__<tool-name>` routing; request URLs contain no query credentials or user-info.
 
 ## Phase 3 — concurrency, isolation, and shutdown
 

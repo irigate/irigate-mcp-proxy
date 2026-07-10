@@ -9,7 +9,9 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `models.py` owns typed static configuration and fail-closed field validation.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
 - `__main__.py` owns the `irigate` console contract.
-- Future transport and broker modules remain owned here, not by `spikes/`.
+- `app.py` owns the loopback Streamable HTTP application and Origin policy.
+- `broker.py` owns tool aggregation, exact namespaced routing, and worker selection.
+- `upstream.py` owns one stdio process/session worker and bounded calls.
 
 ## Local Contracts
 
