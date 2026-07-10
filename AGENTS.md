@@ -94,6 +94,7 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 ## Child DOX Index
 
 - `profiles/AGENTS.md` — Validated static runtime and benchmark profiles.
+- `scripts/AGENTS.md` — Repeatable production compatibility and benchmark evidence harnesses.
 - `spikes/AGENTS.md` — Disposable Phase 0 transport, sharing, failure, and client-compatibility evidence.
 - `src/AGENTS.md` — Production package source and module contracts.
 - `tests/AGENTS.md` — Executable behavioral and process-lifecycle contracts.

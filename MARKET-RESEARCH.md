@@ -177,16 +177,51 @@ Do not build these before evidence from real users. A local broker aimed only at
 
 ## Validation evidence required
 
-The repository currently contains no implementation or benchmark evidence. Before making differentiation or market-size claims, collect:
+The Phase 6 harness collected production broker evidence for the qualified Context7 upstream. The measurements support a narrow resource-consolidation claim for identical credential-free, workspace-free contexts; they do not support call-latency or distinct-context savings claims.
+
+Three repetitions produced these medians and ranges:
+
+| Clients | Mode | Upstream instances | OS processes | Resident memory | Startup to first tool list |
+|---:|---|---:|---:|---:|---:|
+| 1 | Direct | 1 (1–1) | 3 (3–3) | 252.1 MiB (252.0–252.5) | 746 ms (699–891) |
+| 1 | Broker | 1 (1–1) | 3 (3–3) | 263.3 MiB (262.6–263.5) | 3,007 ms (2,899–3,261) |
+| 5 | Direct | 5 (5–5) | 15 (15–15) | 1,258.5 MiB (1,258.5–1,260.5) | 1,361 ms (1,338–1,460) |
+| 5 | Broker | 1 (1–1) | 3 (3–3) | 264.1 MiB (263.7–264.7) | 3,777 ms (3,577–3,786) |
+| 20 | Direct | 20 (20–20) | 60 (60–60) | 5,042.0 MiB (5,039.1–5,044.5) | 4,286 ms (4,244–4,953) |
+| 20 | Broker | 1 (1–1) | 3 (3–3) | 266.9 MiB (266.7–267.6) | 3,789 ms (3,668–3,886) |
+
+At five clients the broker reduced Context7 instances by 80% and resident memory by 79.0%; at 20 clients it reduced instances by 95% and resident memory by 94.7%. One client had no process saving and used 4.4% more resident memory. Every completed trial returned its Context7 process count to baseline, and every broker report reconciled with external process roots.
+
+The final benchmark's Context7 calls were all upstream-throttled. Their recorded first-call and steady-state timings are not valid performance evidence. A prior unthrottled 20-client diagnostic produced repeated 30-second timeouts and triggered configured degradation, so no acceptable high-concurrency latency claim is made.
+
+Compatibility results:
+
+| Client | Result |
+|---|---|
+| Hermes | Validated one direct Streamable HTTP broker call |
+| Kilo/OpenCode | Validated one direct Streamable HTTP broker call |
+| Codex | Validated one direct Streamable HTTP broker call |
+| Claude Code | Installed, but unavailable because the local CLI was not authenticated |
+
+Context classification remains explicit:
+
+| Upstream/context | Mode | Evidence |
+|---|---|---|
+| Context7 with identical credentials/workspace | Qualified shared | Fixed-identity read-only qualifier plus measured process/RSS consolidation |
+| Context7 with distinct credentials/workspaces | Not applicable | The upstream has neither client credentials nor workspace state; no claim is made |
+| code-review-graph | Isolated | Phase 0 state evidence requires per-context isolation |
+| shadcn | Isolated | No reviewed qualifier exists |
+
+The maintained-product gate is `PARTIAL`, not green. Resource consolidation is material for one real qualified upstream, but repeated valid call-latency evidence is missing. Phase 7 remains blocked until the benchmark can be rerun with adequate Context7 quota.
+
+Remaining evidence gaps before broader differentiation or market-size claims:
 
 | Evidence | Question answered |
 |---|---|
-| Process-count benchmark with 1, 5, and 20 clients | Does consolidation actually occur? |
-| Resident-memory comparison | Is the saving material? |
-| Cold-start and steady-state latency | Does the broker improve or degrade developer experience? |
-| Shared-state isolation tests | Which upstreams are safe to share? |
+| Unthrottled repeated first-call and steady-state latency | Does the broker improve or degrade developer experience? |
 | Distinct-workspace and distinct-credential tests | Do realistic contexts eliminate the saving? |
-| Hermes, Claude Code, and Codex compatibility | Is agent independence real? |
+| Authenticated Claude Code compatibility | Does the fourth target client work directly? |
+| Normal-session disconnect behavior | Are incomplete-response warnings harmless SDK noise or an operational defect? |
 | Multi-week operator usage | Is this painful enough to keep running? |
 | Interviews with small platform teams | Is there demand beyond one workstation? |
 
@@ -217,9 +252,9 @@ Benchmark results must separate identical contexts from isolated contexts. Publi
 
 ## Current conclusion
 
-Irigate is worth a bounded implementation attempt as a local MCP broker. It is not yet justified as an enterprise governance or compliance product.
+Irigate demonstrates material process and memory consolidation for one qualified, identical-context upstream and direct compatibility with three installed agent clients. It is not yet justified as a maintained product or as enterprise governance infrastructure because valid repeated call-latency evidence and normal-session operating evidence remain open.
 
-The defensible niche is narrow but coherent: **shared local MCP infrastructure for developers running multiple coding agents**. The next investment should produce transport, isolation, and benchmark evidence—not additional policy features or market claims.
+The next investment is a quota-backed Phase 6 latency rerun and normal-session observation, not additional features or broader market claims.
 
 ## References
 

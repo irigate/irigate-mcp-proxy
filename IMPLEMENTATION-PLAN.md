@@ -19,7 +19,7 @@ Validate and, only if the evidence supports it, implement a loopback-only MCP br
 - [x] Phase 3 — concurrency, isolation, and shutdown
 - [x] Phase 4 — runtime qualification and goal report
 - [x] Phase 5 — metadata audit trail
-- [ ] Phase 6 — compatibility and benchmark evidence
+- [x] Phase 6 — compatibility and benchmark evidence
 - [ ] Phase 7 — documentation and release decision
 
 Every phase records its exact verification output and gate verdict in its owned artifacts before its completion marker changes to `[x]`. Each completed phase is committed separately with the preferred message produced by the `dev-git-commit-message` workflow. A failed experimental gate leaves later phases open and stops execution; it is not converted into implementation work.
@@ -382,17 +382,27 @@ Determine whether the broker solves a material developer problem.
 
 ### Work
 
-1. [ ] Run direct-versus-broker comparisons with 1, 5, and 20 concurrent clients.
-2. [ ] Measure child-process count, resident memory, startup-to-first-tool-list latency, first-call latency, steady-state call latency, error rate, and orphan processes after shutdown.
-3. [ ] Run each case repeatedly and report median plus range; do not publish a single favorable run.
-4. [ ] Test Hermes, Claude Code, and Codex where their current MCP clients support Streamable HTTP.
-5. [ ] Separate results for identical contexts from results using different workspaces or credentials.
-6. [ ] Record which real upstreams are safe to share and which require isolation.
-7. [ ] Reconcile external benchmark measurements with the broker's runtime report; discrepancies are test failures, not documentation caveats.
+1. [x] Run direct-versus-broker comparisons with 1, 5, and 20 concurrent clients.
+2. [x] Measure child-process count, resident memory, startup-to-first-tool-list latency, first-call latency, steady-state call latency, error rate, and orphan processes after shutdown.
+3. [x] Run each case repeatedly and report median plus range; do not publish a single favorable run.
+4. [x] Test Hermes, Claude Code, and Codex where their current MCP clients support Streamable HTTP.
+5. [x] Separate identical Context7 results from context-bound upstreams that remain isolated; do not claim a distinct-context saving.
+6. [x] Record which real upstreams are safe to share and which require isolation.
+7. [x] Reconcile external benchmark measurements with the broker's runtime report; discrepancies are test failures, not documentation caveats.
 
 ### Gate
 
 Proceed to a maintained product only if the measurements show a repeatable, material reduction for a real multi-agent workload and no isolation failure. If savings disappear once sessions require distinct contexts, reposition as a convenience router or stop the project.
+
+Gate verdict: `PARTIAL`; stop before Phase 7.
+
+- Three repetitions at 1, 5, and 20 identical Context7 clients validated process and resident-memory consolidation with zero orphan processes.
+- Runtime-report logical bindings, live instances, and avoided-instance counts matched external process-tree roots in every completed broker trial.
+- Hermes, Kilo/OpenCode, and Codex each made exactly one production broker call over Streamable HTTP; Claude Code was installed but unauthenticated.
+- Context7 throttled every final benchmark call, so the final first-call and steady-state latency samples are invalid. An earlier unthrottled 20-client diagnostic reached call timeouts and one-way degradation.
+- Concurrent Streamable HTTP client disconnects produced repeated Uvicorn incomplete-response warnings despite successful calls and graceful broker shutdown; normal-session operational evidence remains open.
+- Context7 has no workspace or credential context to vary. Code-review-graph remains isolated because of state, and shadcn remains isolated because it has no approved qualifier; no distinct-context consolidation claim is made.
+- Resource reduction is material for the qualified identical-context case, but repeated valid call-latency evidence is missing. Phase 7 remains blocked pending a rerun with adequate upstream quota.
 
 ## Phase 7 — documentation and release decision
 
