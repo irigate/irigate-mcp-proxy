@@ -24,10 +24,14 @@ class _StreamableHTTPApp:
         await self._manager.handle_request(scope, receive, send)
 
 
-def create_app(config: BrokerConfig) -> Starlette:
+def create_app(
+    config: BrokerConfig, *, require_qualified_sharing: bool = False
+) -> Starlette:
     """Create the loopback Streamable HTTP app without starting processes."""
 
-    broker = Broker(config)
+    broker = Broker(
+        config, require_qualified_sharing=require_qualified_sharing
+    )
     server: Server[Any] = Server("irigate", version=__version__)
 
     @server.list_tools()

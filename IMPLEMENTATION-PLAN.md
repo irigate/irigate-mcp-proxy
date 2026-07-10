@@ -17,7 +17,7 @@ Validate and, only if the evidence supports it, implement a loopback-only MCP br
 - [x] Phase 1 — package and configuration contract
 - [x] Phase 2 — broker core and deterministic routing
 - [x] Phase 3 — concurrency, isolation, and shutdown
-- [ ] Phase 4 — runtime qualification and goal report
+- [x] Phase 4 — runtime qualification and goal report
 - [ ] Phase 5 — metadata audit trail
 - [ ] Phase 6 — compatibility and benchmark evidence
 - [ ] Phase 7 — documentation and release decision
@@ -310,15 +310,15 @@ Check the selected MCP servers before sharing them and report whether the runnin
 
 ### Work
 
-1. [ ] Write failing tests proving that an unqualified upstream cannot enter shared mode.
-2. [ ] Implement generic startup checks: two isolated initializations, stable tool-schema fingerprint, disconnect/reconnect, timeout, and crash isolation.
-3. [ ] Define a small qualifier registry. Each qualifier names the upstream it supports and implements only explicit, reviewed, non-destructive behavioral probes.
-4. [ ] Add `irigate qualify --config <path>` to run qualification without serving clients and return non-zero when requested sharing is not admitted.
-5. [ ] Run the same qualification during normal startup. Default to isolated mode on failure; `--require-qualified-sharing` instead aborts startup.
-6. [ ] Add in-memory counters for logical bindings, live instances, spawns, reuse hits, startup duration, queue duration, call duration, failures, and crashes.
-7. [ ] Atomically refresh the configured JSON runtime report without arguments, results, environment values, or credentials.
-8. [ ] Mark an upstream `degraded` after configured crash/error thresholds and route new sessions to isolated instances; do not silently restore shared mode during the same run.
-9. [ ] Test that a one-client run reports `insufficient_evidence`, a multi-client shared run reports actual avoided instances, and an isolated run never claims consolidation.
+1. [x] Write failing tests proving that an unqualified upstream cannot enter shared mode.
+2. [x] Implement generic startup checks: two isolated initializations, stable tool-schema fingerprint, disconnect/reconnect, timeout, and crash isolation.
+3. [x] Define a small qualifier registry. Each qualifier names the upstream it supports and implements only explicit, reviewed, non-destructive behavioral probes.
+4. [x] Add `irigate qualify --config <path>` to run qualification without serving clients and return non-zero when requested sharing is not admitted.
+5. [x] Run the same qualification during normal startup. Default to isolated mode on failure; `--require-qualified-sharing` instead aborts startup.
+6. [x] Add in-memory counters for logical bindings, live instances, spawns, reuse hits, startup duration, queue duration, call duration, failures, and crashes.
+7. [x] Atomically refresh the configured JSON runtime report without arguments, results, environment values, or credentials.
+8. [x] Add per-upstream crash/error thresholds, mark an upstream `degraded` when either threshold is reached, and route new sessions to isolated instances; do not silently restore shared mode during the same run.
+9. [x] Test that a one-client run reports `insufficient_evidence`, a multi-client shared run reports actual avoided instances, and an isolated run never claims consolidation.
 
 ### Verification
 
@@ -328,6 +328,14 @@ python -m irigate qualify --config profiles/mvp.yaml
 ```
 
 Expected: only explicitly qualified upstreams are admitted to shared mode; the report distinguishes `qualified`, `degraded`, `isolated`, and `insufficient_evidence` without exposing payload data.
+
+Gate verdict: `VALIDATED`.
+
+- Phase 4 qualification and runtime-report suite: 13 passed.
+- The full regression suite: 52 passed.
+- `irigate qualify --config profiles/mvp.yaml`: `context7=qualified` against Context7 3.2.3.
+- Failed qualification defaults to isolated mode; strict startup rejects it.
+- Runtime reports atomically record metadata-only counters and never include tested payload or environment sentinel values.
 
 ## Phase 5 — metadata audit trail
 

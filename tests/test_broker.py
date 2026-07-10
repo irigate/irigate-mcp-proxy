@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 from mcp import ClientSession, types
@@ -65,13 +66,15 @@ async def test_upstream_crash_does_not_stop_another_upstream() -> None:
 
 
 async def test_shareable_worker_reused_and_isolated_worker_scoped_per_session() -> None:
+    context7_server = Path(__file__).parent / "fixtures" / "context7_server.py"
     config = BrokerConfig.model_validate(
         {
             "name": "lifecycle-test",
             "host": "127.0.0.1",
             "port": 8765,
             "upstreams": {
-                "shared": upstream(
+                "context7": upstream(
+                    args=[str(context7_server)],
                     shareable=True, qualifier="context7-readonly-v3"
                 ),
                 "isolated": upstream(),
@@ -81,8 +84,8 @@ async def test_shareable_worker_reused_and_isolated_worker_scoped_per_session() 
     broker = Broker(config)
     await broker.start()
     try:
-        shared_a = await broker.worker_for("shared", "session-a")
-        shared_b = await broker.worker_for("shared", "session-b")
+        shared_a = await broker.worker_for("context7", "session-a")
+        shared_b = await broker.worker_for("context7", "session-b")
         isolated_a = await broker.worker_for("isolated", "session-a")
         isolated_b = await broker.worker_for("isolated", "session-b")
 

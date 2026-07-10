@@ -12,7 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 _ENV_REFERENCE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
 _UPSTREAM_KEY = re.compile(r"^[a-z][a-z0-9-]*$")
 _PROFILE_NAME = re.compile(r"^[a-z][a-z0-9-]*$")
-REGISTERED_QUALIFIERS = frozenset({"context7-readonly-v3"})
+QUALIFIER_UPSTREAM_KEYS = {"context7-readonly-v3": "context7"}
+REGISTERED_QUALIFIERS = frozenset(QUALIFIER_UPSTREAM_KEYS)
 
 
 class EnvironmentReference(BaseModel):
@@ -36,6 +37,8 @@ class UpstreamConfig(BaseModel):
     qualifier: str | None = None
     concurrency: Literal["serial", "parallel"] = "serial"
     call_timeout_seconds: Annotated[float, Field(gt=0, le=3600)] = 30
+    failure_threshold: Annotated[int, Field(ge=1, le=100)] = 5
+    crash_threshold: Annotated[int, Field(ge=1, le=100)] = 2
 
     @field_validator("command")
     @classmethod
@@ -123,6 +126,16 @@ class BrokerConfig(BaseModel):
                 + ", ".join(invalid)
             )
         return value
+
+    @model_validator(mode="after")
+    def validate_qualifier_upstream_keys(self) -> BrokerConfig:
+        for key, upstream in self.upstreams.items():
+            expected = QUALIFIER_UPSTREAM_KEYS.get(upstream.qualifier or "")
+            if upstream.shareable and expected != key:
+                raise ValueError(
+                    f"qualifier '{upstream.qualifier}' supports upstream key '{expected}'"
+                )
+        return self
 
     @property
     def environment_names(self) -> frozenset[str]:

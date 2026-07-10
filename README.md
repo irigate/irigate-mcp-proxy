@@ -9,7 +9,7 @@ status: planning
 
 Irigate is a proposed loopback-only MCP broker. It aims to let local agent sessions share explicitly approved stdio MCP servers, reducing duplicate processes and repeated cold starts while providing metadata-only tool-call telemetry.
 
-Phase 3 provides the loopback Streamable HTTP broker runtime, exact namespaced routing, explicit serial/parallel modes, per-session isolation, bounded shutdown, and orphan-process checks.
+Phase 4 adds startup qualification, fail-closed sharing admission, one-way degradation, and atomic metadata-only evidence reports to the loopback Streamable HTTP broker.
 
 ## Problem hypothesis
 
@@ -103,6 +103,6 @@ Irigate is positioned as local AI developer infrastructure, not as a competitor 
 
 - Product scope: narrowed to a local MCP broker.
 - Validation: Phase 0 completed; Context7 is the first qualified shared-upstream candidate, while code-review-graph remains isolated.
-- Implementation: Phase 3 concurrency, isolation, and shutdown completed; runtime qualification and reporting remain open.
+- Implementation: Phase 4 runtime qualification and goal reporting completed; metadata audit output remains open.
 - Market evidence: hypothesis only.
-- Next action: execute Phase 4 of `IMPLEMENTATION-PLAN.md`.
+- Next action: execute Phase 5 of `IMPLEMENTATION-PLAN.md`.

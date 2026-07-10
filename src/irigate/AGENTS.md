@@ -12,6 +12,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `app.py` owns the loopback Streamable HTTP application and Origin policy.
 - `broker.py` owns tool aggregation, exact namespaced routing, and worker selection.
 - `upstream.py` owns one stdio process/session worker and bounded calls.
+- `qualification.py` owns generic checks and reviewed upstream-specific sharing admission.
+- `runtime_report.py` owns metadata-only counters and atomic JSON snapshots.
 
 ## Local Contracts
 
@@ -23,6 +25,10 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `serial` and `parallel` concurrency are explicit per-upstream contracts.
 - Non-shareable workers are keyed by downstream session and never reused across sessions.
 - Shutdown closes the HTTP session manager before workers and bounds active-call draining.
+- Requested sharing defaults to isolated when qualification fails; strict mode aborts startup.
+- Qualification probes use fixed non-destructive surfaces and never forward client payloads.
+- Runtime reports contain counts, durations, modes, and upstream keys only.
+- A degraded shared upstream remains degraded until process restart.
 
 ## Work Guidance
 

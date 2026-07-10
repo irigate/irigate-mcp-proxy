@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
@@ -23,6 +24,7 @@ class _Call:
     tool: str
     arguments: dict[str, Any]
     result: asyncio.Future[types.CallToolResult]
+    enqueued_at: float
 
 
 class UpstreamWorker:
@@ -33,10 +35,12 @@ class UpstreamWorker:
         key: str,
         config: UpstreamConfig,
         environment: dict[str, str],
+        event_sink: Callable[[str, float], None] | None = None,
     ) -> None:
         self.key = key
         self.config = config
         self.environment = environment
+        self._event_sink = event_sink
         self.tools: tuple[types.Tool, ...] = ()
         self._queue: asyncio.Queue[_Call | None] = asyncio.Queue()
         self._ready: asyncio.Future[tuple[types.Tool, ...]] | None = None
@@ -105,6 +109,8 @@ class UpstreamWorker:
 
     async def _execute_call(self, session: ClientSession, request: _Call) -> None:
         self._active_results.add(request.result)
+        if self._event_sink is not None:
+            self._event_sink("queue_duration", time.monotonic() - request.enqueued_at)
         try:
             result = await session.call_tool(request.tool, request.arguments)
         except BaseException as exc:
@@ -126,7 +132,14 @@ class UpstreamWorker:
         if self._task is None or self._task.done():
             raise UpstreamError(f"upstream '{self.key}' is unavailable")
         result: asyncio.Future[types.CallToolResult] = asyncio.get_running_loop().create_future()
-        await self._queue.put(_Call(tool=tool, arguments=arguments, result=result))
+        await self._queue.put(
+            _Call(
+                tool=tool,
+                arguments=arguments,
+                result=result,
+                enqueued_at=time.monotonic(),
+            )
+        )
         try:
             return await asyncio.wait_for(
                 asyncio.shield(result), timeout=self.config.call_timeout_seconds
