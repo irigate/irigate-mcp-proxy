@@ -184,7 +184,7 @@ Gate verdict: `VALIDATED`.
 
 - [`001-streamable-http-roundtrip`](spikes/001-streamable-http-roundtrip/README.md) validates the official SDK transport, concurrent correlation, reconnect, timeout, Origin policy, and graceful shutdown.
 - [`002-shared-upstream-state`](spikes/002-shared-upstream-state/README.md) admits Context7's current fixed-identity read-only surface, keeps code-review-graph isolated, and contains an upstream process crash.
-- [`003-multi-client-compatibility`](spikes/003-multi-client-compatibility/README.md) validates direct Streamable HTTP tool calls from Hermes and Kilo/OpenCode. Claude Code and Codex remain open compatibility targets because their installed clients are not currently authenticated.
+- [`003-multi-client-compatibility`](spikes/003-multi-client-compatibility/README.md) validates direct Streamable HTTP tool calls from Hermes, Kilo/OpenCode, and Codex. Claude Code remains the only open compatibility target because the installed client is not currently authenticated.
 
 ## Phase 1 — package and configuration contract
 

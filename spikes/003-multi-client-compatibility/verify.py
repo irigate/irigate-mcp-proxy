@@ -17,6 +17,7 @@ HOST = "127.0.0.1"
 PORT = 8765
 URL = f"http://{HOST}:{PORT}/mcp"
 ACTIVE_HERMES_HOME = Path.home() / ".hermes" / "profiles" / "hermes-vc"
+ACTIVE_CODEX_HOME = Path.home() / ".codex"
 
 
 def wait_ready(process: subprocess.Popen[str], timeout: float = 15.0) -> None:
@@ -56,6 +57,19 @@ def run_client(name: str, command: list[str], env: dict[str, str], marker: str, 
     after = call_count(call_log)
     assert after == before + 1, f"{name} broker calls: before={before}, after={after}\n{output}"
     return output
+
+
+def configure_codex(home: Path) -> dict[str, str]:
+    auth = ACTIVE_CODEX_HOME / "auth.json"
+    assert auth.exists(), "Codex authentication is unavailable"
+    (home / "auth.json").symlink_to(auth)
+    (home / "config.toml").write_text(
+        f'''[mcp_servers.irigate]\nurl = "{URL}"\nenabled = true\ndefault_tools_approval_mode = "approve"\nstartup_timeout_sec = 15\ntool_timeout_sec = 15\n''',
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env["CODEX_HOME"] = str(home)
+    return env
 
 
 def configure_kilo(config_home: Path) -> dict[str, str]:
@@ -141,6 +155,29 @@ def main() -> None:
             "HERMES_STREAMABLE_OK",
             call_log,
         )
+
+        codex_home = temp_root / "codex"
+        codex_home.mkdir()
+        codex_env = configure_codex(codex_home)
+        run_client(
+            "Codex",
+            [
+                "codex",
+                "--ask-for-approval",
+                "never",
+                "exec",
+                "--ephemeral",
+                "--ignore-rules",
+                "--sandbox",
+                "read-only",
+                "-C",
+                str(ROOT),
+                "Call the irigate MCP tool echo__repeat exactly once with value CODEX_STREAMABLE_OK. Return only the tool result.",
+            ],
+            codex_env,
+            "CODEX_STREAMABLE_OK",
+            call_log,
+        )
     finally:
         broker.send_signal(signal.SIGTERM)
         try:
@@ -156,7 +193,10 @@ def main() -> None:
         f"broker shutdown={broker.returncode}\n{stdout}\n{stderr}"
     )
     assert "Application shutdown complete" in stderr, stderr
-    print("VALIDATED: Hermes and Kilo/OpenCode called Streamable HTTP directly; Claude and Codex unavailable (authentication)")
+    print(
+        "VALIDATED: Hermes, Kilo/OpenCode, and Codex called Streamable HTTP directly; "
+        "Claude unavailable (not authenticated)"
+    )
 
 
 if __name__ == "__main__":
