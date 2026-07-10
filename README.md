@@ -15,7 +15,7 @@ Irigate is a loopback-only MCP broker. It lets local agent sessions share explic
 | **⌁** | **One local MCP endpoint**<br>Connect Hermes, Claude Code, Codex, and other Streamable HTTP clients to the same loopback broker. | **⟲** | **Connection-preserving reloads**<br>Apply profile changes in the background without disconnecting active AI-agent sessions. |
 | **◈** | **Selective process reuse**<br>Share qualified stdio servers across compatible sessions and restart only upstreams whose configuration changed. | **⛨** | **Fail-closed sharing**<br>Keep upstreams isolated by default; sharing requires explicit opt-in and an upstream-specific qualifier. |
 | **⎇** | **Exact namespaced routing**<br>Expose deterministic `<upstream>__<tool>` names and reject ambiguous or unknown routes. | **◎** | **Session isolation**<br>Scope non-shareable workers to downstream sessions so context-bound state never leaks across agents. |
-| **⚡** | **Explicit concurrency**<br>Choose serial or parallel execution per upstream, with independent queues and bounded call timeouts. | **◷** | **Bounded lifecycle**<br>Drain active work, close MCP sessions, and terminate child processes without leaving orphans. |
+| **⚡** | **Explicit concurrency**<br>Choose serial or parallel execution per upstream, with independent queues and bounded call timeouts. | **◷** | **Bounded lifecycle**<br>Shut down each idle upstream on its configured timeout, restart it on demand, and terminate children without leaving orphans. |
 | **◇** | **Metadata-only observability**<br>Record outcomes, durations, reuse, failures, and process counts without payloads, commands, or credentials. | **⚖** | **Measured compatibility**<br>Run qualification, multi-client compatibility checks, and repeatable 1/5/20-client resource benchmarks. |
 
 ## Problem hypothesis
@@ -56,6 +56,71 @@ uv run --frozen irigate --help
 uv run --frozen irigate --config profiles/mvp.yaml --check
 ```
 
+## Configuration
+
+Irigate reads one YAML profile selected with `--config`. Profiles are validated before any upstream process starts: unknown fields, duplicate YAML keys, unsupported transports, invalid routing keys, non-loopback listeners, and missing environment references are rejected.
+
+```yaml
+name: local
+host: 127.0.0.1
+port: 8765
+runtime_report_path: .irigate/runtime-report.json
+
+upstreams:
+  context7:
+    transport: stdio
+    command: npx
+    args: ["-y", "@upstash/context7-mcp"]
+    env:
+      CONTEXT7_API_KEY: ${CONTEXT7_API_KEY}
+    shareable: true
+    qualifier: context7-readonly-v3
+    concurrency: serial
+    call_timeout_seconds: 30
+    idle_timeout_seconds: 300
+    failure_threshold: 5
+    crash_threshold: 2
+```
+
+### Broker fields
+
+| Field | Required | Default | Contract |
+| --- | --- | --- | --- |
+| `name` | Yes | — | Profile identifier using lowercase letters, digits, and hyphens. |
+| `host` | No | `127.0.0.1` | Listener address. Only `localhost` or an IP loopback address is accepted. |
+| `port` | No | `8765` | Streamable HTTP listener port, from 1 through 65535. |
+| `runtime_report_path` | No | Disabled | JSON report destination. The file is refreshed atomically and contains metadata only. |
+| `upstreams` | Yes | — | Non-empty mapping of routing keys to stdio upstream definitions. |
+
+An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>` route. Keys must start with a lowercase letter and may contain lowercase letters, digits, and hyphens.
+
+### Upstream fields
+
+| Field | Required | Default | Contract |
+| --- | --- | --- | --- |
+| `transport` | No | `stdio` | Only `stdio` is supported. |
+| `command` | Yes | — | One executable token. Put command arguments in `args`. |
+| `args` | No | `[]` | Static argument list. Environment references and credentials are not accepted here. |
+| `env` | No | `{}` | Child environment mapping. Every value must be an explicit `${BROKER_ENV_NAME}` reference. |
+| `shareable` | No | `false` | Requests one process shared across downstream sessions. Sharing is admitted only by a registered qualifier. |
+| `qualifier` | Conditional | — | Required when `shareable: true`; rejected otherwise. Currently registered: `context7-readonly-v3` for the `context7` key. |
+| `concurrency` | No | `serial` | `serial` executes one call at a time; `parallel` permits concurrent calls within the worker. |
+| `call_timeout_seconds` | No | `30` | Per-call timeout greater than 0 and no more than 3600 seconds. It does not control process idleness. |
+| `idle_timeout_seconds` | Yes | — | Per-process inactivity TTL greater than 0 and no more than 86400 seconds. |
+| `failure_threshold` | No | `5` | Error count from 1 through 100 that degrades a shared upstream. |
+| `crash_threshold` | No | `2` | Crash count from 1 through 100 that degrades a shared upstream. |
+
+Each spawned worker tracks its own idle timeout. A worker shuts down only when its TTL expires with no queued or active calls. Shared and session-isolated workers expire independently, and the next routed call starts a fresh process in the same effective sharing mode. A long-running call remains governed by `call_timeout_seconds`, not by the idle timeout.
+
+Environment values are resolved from the broker process without being written into the profile, audit log, runtime report, or validation output:
+
+```bash
+export CONTEXT7_API_KEY='...'
+uv run --frozen irigate --config profiles/local.yaml --check
+```
+
+While serving, Irigate watches the selected profile. Added or changed upstreams must initialize successfully before routing switches. Invalid updates leave the last valid configuration active. Changes to `host` or `port` require restarting the broker.
+
 ## Run
 
 Start the broker in the foreground with strict sharing admission:
@@ -66,7 +131,7 @@ uv run --frozen irigate \
   --require-qualified-sharing
 ```
 
-The broker qualifies Context7, starts the configured stdio upstreams, and listens at `http://127.0.0.1:8765/mcp`. Configure MCP clients to use that URL with the Streamable HTTP transport. While running, Irigate watches the selected profile. Valid upstream changes are prepared and swapped in the background; affected stdio servers restart without disconnecting existing Streamable HTTP client sessions. Invalid changes are rejected and the active configuration keeps serving. Changes to `host` or `port` require a broker restart.
+The broker qualifies Context7, starts the configured stdio upstreams, and listens at `http://127.0.0.1:8765/mcp`. Configure MCP clients to use that URL with the Streamable HTTP transport. Each upstream's required `idle_timeout_seconds` shuts down that process independently after inactivity; the next routed call starts a fresh process without changing the downstream session. While running, Irigate watches the selected profile. Valid upstream changes are prepared and swapped in the background; affected stdio servers restart without disconnecting existing Streamable HTTP client sessions. Invalid changes are rejected and the active configuration keeps serving. Changes to `host` or `port` require a broker restart.
 
 Stop the broker with `Ctrl+C`; shutdown drains active calls and closes child processes.
 
