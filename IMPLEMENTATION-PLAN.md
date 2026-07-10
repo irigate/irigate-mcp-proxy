@@ -1,6 +1,6 @@
 ---
 title: Irigate local MCP broker — implementation plan
-status: proposed
+status: active
 ---
 
 # Irigate local MCP broker — implementation plan
@@ -10,6 +10,19 @@ status: proposed
 ## Goal
 
 Validate and, only if the evidence supports it, implement a loopback-only MCP broker that lets multiple local AI coding-agent sessions share explicitly approved stdio MCP servers while preserving session correctness and producing metadata-only call telemetry.
+
+## Execution state
+
+- [ ] Phase 0 — transport and sharing spikes (in progress)
+- [ ] Phase 1 — package and configuration contract
+- [ ] Phase 2 — broker core and deterministic routing
+- [ ] Phase 3 — concurrency, isolation, and shutdown
+- [ ] Phase 4 — runtime qualification and goal report
+- [ ] Phase 5 — metadata audit trail
+- [ ] Phase 6 — compatibility and benchmark evidence
+- [ ] Phase 7 — documentation and release decision
+
+Every phase records its exact verification output and gate verdict in its owned artifacts before its completion marker changes to `[x]`. Each completed phase is committed separately with the preferred message produced by the `dev-git-commit-message` workflow. A failed experimental gate leaves later phases open and stops execution; it is not converted into implementation work.
 
 ## Product boundary
 
@@ -145,14 +158,15 @@ Kill the project early if the MCP transport or process-sharing assumptions do no
 
 ### Work
 
-1. Pin a candidate Python and MCP SDK version inside each spike, not in production packaging yet.
-2. Prove a Streamable HTTP client can complete `initialize`, `tools/list`, and `tools/call` through a broker into one stdio echo server.
-3. Connect two clients simultaneously and prove responses return to the correct caller.
-4. Run the same test against two real candidate upstreams from the operator's workload.
-5. For every candidate shared upstream, test whether state created by client A is observable by client B.
-6. Test client disconnect, upstream crash, request timeout, and broker shutdown.
-7. Separate properties that can be checked generically from properties requiring an upstream-specific safe probe.
-8. Record exact commands, versions, results, and a `VALIDATED`, `PARTIAL`, or `INVALIDATED` verdict in each spike README.
+1. [ ] Pin a candidate Python and MCP SDK version inside each spike, not in production packaging yet.
+2. [ ] Prove a Streamable HTTP client can complete `initialize`, `tools/list`, and `tools/call` through a broker into one stdio echo server.
+3. [ ] Connect two clients simultaneously and prove responses return to the correct caller.
+4. [ ] Run the same test against two real candidate upstreams from the operator's workload.
+5. [ ] For every candidate shared upstream, test whether state created by client A is observable by client B.
+6. [ ] Test client disconnect, upstream crash, request timeout, and broker shutdown.
+7. [ ] Separate properties that can be checked generically from properties requiring an upstream-specific safe probe.
+8. [ ] Verify that malformed and non-loopback `Origin` headers are rejected; document and test the explicit no-Origin policy required by supported non-browser local clients.
+9. [ ] Record exact commands, versions, results, and a `VALIDATED`, `PARTIAL`, or `INVALIDATED` verdict in each spike README.
 
 ### Gate
 
@@ -162,6 +176,7 @@ Continue only if:
 - At least two relevant clients can use it without an SSE bridge.
 - At least one expensive stdio upstream is demonstrably safe to share.
 - A failed upstream does not stop calls to another upstream.
+- Streamable HTTP requests enforce the MCP Origin-validation requirement without accepting remote origins, and the tested no-Origin behavior is documented.
 
 If no expensive upstream is safe to share, stop: the core resource-consolidation value is invalidated.
 
@@ -180,12 +195,12 @@ Create an installable, testable package with fail-closed static configuration.
 
 ### Work
 
-1. Write failing tests for valid profiles, duplicate keys, invalid commands, missing secret references, unsupported transports, and unknown fields.
-2. Define typed configuration for host, port, upstream key, command, arguments, environment references, `shareable`, qualifier name, concurrency, call timeout, and optional runtime-report path.
-3. Require loopback host values and reject remote binds.
-4. Resolve `${ENV_NAME}` only from the broker process environment and report missing names without printing values.
-5. Reject `shareable: true` when the profile does not name a registered upstream-specific qualifier.
-6. Add a console entry point for `irigate` that loads configuration and exits non-zero on validation errors.
+1. [ ] Write failing tests for valid profiles, duplicate keys, invalid commands, missing secret references, unsupported transports, and unknown fields.
+2. [ ] Define typed configuration for host, port, upstream key, command, arguments, environment references, `shareable`, qualifier name, concurrency, call timeout, and optional runtime-report path.
+3. [ ] Require loopback host values and reject remote binds.
+4. [ ] Resolve `${ENV_NAME}` only from the broker process environment and report missing names without printing values.
+5. [ ] Reject `shareable: true` when the profile does not name a registered upstream-specific qualifier.
+6. [ ] Add a console entry point for `irigate` that loads configuration and exits non-zero on validation errors.
 
 ### Verification
 
@@ -210,13 +225,13 @@ Proxy MCP tools without ambiguous routing or implicit process sharing.
 
 ### Work
 
-1. Write a failing end-to-end test for downstream `initialize`.
-2. Implement the loopback Streamable HTTP application.
-3. Write a failing test that expects `echo__repeat` from an upstream key `echo`.
-4. Implement upstream initialization and namespaced `tools/list` aggregation.
-5. Write failing tests for unknown prefixes, duplicate names, upstream initialization failure, call timeout, and upstream crash.
-6. Implement exact prefix-based dispatch and isolate upstream failures.
-7. Add per-upstream lifecycle handling for isolated and explicitly shared instances.
+1. [ ] Write failing end-to-end tests for downstream `initialize` and Origin validation.
+2. [ ] Implement the loopback Streamable HTTP application.
+3. [ ] Write a failing test that expects `echo__repeat` from an upstream key `echo`.
+4. [ ] Implement upstream initialization and namespaced `tools/list` aggregation.
+5. [ ] Write failing tests for unknown prefixes, duplicate names, upstream initialization failure, call timeout, and upstream crash.
+6. [ ] Implement exact prefix-based dispatch and isolate upstream failures.
+7. [ ] Add per-upstream lifecycle handling for isolated and explicitly shared instances.
 
 ### Verification
 
@@ -239,12 +254,12 @@ Prove that sharing saves resources without cross-session state leakage.
 
 ### Work
 
-1. Test simultaneous calls to different upstreams; a slow call must not delay a fast upstream.
-2. Test `serial` and `parallel` concurrency modes independently.
-3. Test that non-shareable upstreams never reuse a process across client sessions.
-4. Run the Phase 0 state-isolation fixtures against every `shareable: true` profile entry.
-5. Implement graceful shutdown: stop accepting clients, bound the drain interval, close MCP sessions, terminate child processes, then kill only remaining children.
-6. Test client disconnects and repeated startup/shutdown cycles for orphan processes.
+1. [ ] Test simultaneous calls to different upstreams; a slow call must not delay a fast upstream.
+2. [ ] Test `serial` and `parallel` concurrency modes independently.
+3. [ ] Test that non-shareable upstreams never reuse a process across client sessions.
+4. [ ] Run the Phase 0 state-isolation fixtures against every `shareable: true` profile entry.
+5. [ ] Implement graceful shutdown: stop accepting clients, bound the drain interval, close MCP sessions, terminate child processes, then kill only remaining children.
+6. [ ] Test client disconnects and repeated startup/shutdown cycles for orphan processes.
 
 ### Verification
 
@@ -268,15 +283,15 @@ Check the selected MCP servers before sharing them and report whether the runnin
 
 ### Work
 
-1. Write failing tests proving that an unqualified upstream cannot enter shared mode.
-2. Implement generic startup checks: two isolated initializations, stable tool-schema fingerprint, disconnect/reconnect, timeout, and crash isolation.
-3. Define a small qualifier registry. Each qualifier names the upstream it supports and implements only explicit, reviewed, non-destructive behavioral probes.
-4. Add `irigate qualify --config <path>` to run qualification without serving clients and return non-zero when requested sharing is not admitted.
-5. Run the same qualification during normal startup. Default to isolated mode on failure; `--require-qualified-sharing` instead aborts startup.
-6. Add in-memory counters for logical bindings, live instances, spawns, reuse hits, startup duration, queue duration, call duration, failures, and crashes.
-7. Atomically refresh the configured JSON runtime report without arguments, results, environment values, or credentials.
-8. Mark an upstream `degraded` after configured crash/error thresholds and route new sessions to isolated instances; do not silently restore shared mode during the same run.
-9. Test that a one-client run reports `insufficient_evidence`, a multi-client shared run reports actual avoided instances, and an isolated run never claims consolidation.
+1. [ ] Write failing tests proving that an unqualified upstream cannot enter shared mode.
+2. [ ] Implement generic startup checks: two isolated initializations, stable tool-schema fingerprint, disconnect/reconnect, timeout, and crash isolation.
+3. [ ] Define a small qualifier registry. Each qualifier names the upstream it supports and implements only explicit, reviewed, non-destructive behavioral probes.
+4. [ ] Add `irigate qualify --config <path>` to run qualification without serving clients and return non-zero when requested sharing is not admitted.
+5. [ ] Run the same qualification during normal startup. Default to isolated mode on failure; `--require-qualified-sharing` instead aborts startup.
+6. [ ] Add in-memory counters for logical bindings, live instances, spawns, reuse hits, startup duration, queue duration, call duration, failures, and crashes.
+7. [ ] Atomically refresh the configured JSON runtime report without arguments, results, environment values, or credentials.
+8. [ ] Mark an upstream `degraded` after configured crash/error thresholds and route new sessions to isolated instances; do not silently restore shared mode during the same run.
+9. [ ] Test that a one-client run reports `insufficient_evidence`, a multi-client shared run reports actual avoided instances, and an isolated run never claims consolidation.
 
 ### Verification
 
@@ -299,10 +314,10 @@ Provide useful operational evidence without collecting tool payloads.
 
 ### Work
 
-1. Write tests for success, timeout, upstream error, invalid tool, and shutdown outcomes.
-2. Implement one JSON-line record per completed or rejected call.
-3. Add tests with sentinel credentials in arguments, results, and environment values.
-4. Assert sentinel values never occur in captured stdout or stderr.
+1. [ ] Write tests for success, timeout, upstream error, invalid tool, and shutdown outcomes.
+2. [ ] Implement one JSON-line record per completed or rejected call.
+3. [ ] Add tests with sentinel credentials in arguments, results, and environment values.
+4. [ ] Assert sentinel values never occur in captured stdout or stderr.
 
 ### Verification
 
@@ -325,13 +340,13 @@ Determine whether the broker solves a material developer problem.
 
 ### Work
 
-1. Run direct-versus-broker comparisons with 1, 5, and 20 concurrent clients.
-2. Measure child-process count, resident memory, startup-to-first-tool-list latency, first-call latency, steady-state call latency, error rate, and orphan processes after shutdown.
-3. Run each case repeatedly and report median plus range; do not publish a single favorable run.
-4. Test Hermes, Claude Code, and Codex where their current MCP clients support Streamable HTTP.
-5. Separate results for identical contexts from results using different workspaces or credentials.
-6. Record which real upstreams are safe to share and which require isolation.
-7. Reconcile external benchmark measurements with the broker's runtime report; discrepancies are test failures, not documentation caveats.
+1. [ ] Run direct-versus-broker comparisons with 1, 5, and 20 concurrent clients.
+2. [ ] Measure child-process count, resident memory, startup-to-first-tool-list latency, first-call latency, steady-state call latency, error rate, and orphan processes after shutdown.
+3. [ ] Run each case repeatedly and report median plus range; do not publish a single favorable run.
+4. [ ] Test Hermes, Claude Code, and Codex where their current MCP clients support Streamable HTTP.
+5. [ ] Separate results for identical contexts from results using different workspaces or credentials.
+6. [ ] Record which real upstreams are safe to share and which require isolation.
+7. [ ] Reconcile external benchmark measurements with the broker's runtime report; discrepancies are test failures, not documentation caveats.
 
 ### Gate
 
@@ -351,10 +366,11 @@ Publish only claims supported by the benchmark and compatibility results.
 
 ### Work
 
-1. Replace hypothesis language with measured results only where evidence exists.
-2. Document supported clients, supported upstreams, and known unsafe sharing cases.
-3. Keep enterprise identity, compliance, remote deployment, and API-gateway features out of the roadmap unless a paying design partner requires them.
-4. Decide among three outcomes: stop, maintain as an internal tool, or release as an open-source local MCP broker.
+1. [ ] Replace hypothesis language with measured results only where evidence exists.
+2. [ ] Document supported clients, supported upstreams, and known unsafe sharing cases.
+3. [ ] Keep enterprise identity, compliance, remote deployment, and API-gateway features out of the roadmap unless a paying design partner requires them.
+4. [ ] Decide among three outcomes: stop, maintain as an internal tool, or release as an open-source local MCP broker.
+5. [ ] Mark this plan `completed` or `stopped`, preserving unfinished items as open evidence gaps.
 
 ## Full verification
 

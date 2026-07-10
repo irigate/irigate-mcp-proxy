@@ -84,6 +84,7 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 
 - **Agent harness protected by tirith.sh.** Reading passwords or access tokens is prohibited. Extract variables from `.env` / config files without relaying their values; use environment variables by importing them for Bash execution. `***` in output is a tirith redaction marker, not a literal value — never "fix" it to a variable ref.
 - **Local MCP broker scope.** Irigate validates loopback-only sharing of explicitly approved stdio MCP upstreams. It is not an enterprise governance, compliance, multi-tenant, or general model-API gateway.
+- **Local HTTP origin enforcement.** Streamable HTTP requests must reject malformed and non-loopback `Origin` headers to prevent DNS rebinding. The no-Origin behavior for non-browser local clients must be explicit and proven by the transport spike.
 - **No request-delivered credentials.** Credentials must never be accepted through URLs, query parameters, command arguments, logs, or committed profiles. Runtime configuration may reference broker-process environment variables without exposing their values.
 
 ## Session-start tooling
