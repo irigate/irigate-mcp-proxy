@@ -99,6 +99,7 @@ async def test_qualify_cli_returns_metadata_without_environment_values(tmp_path:
                 "    qualifier: context7-readonly-v3",
                 "    concurrency: serial",
                 "    call_timeout_seconds: 2",
+                "    idle_timeout_seconds: 60",
             ]
         )
     )

@@ -65,18 +65,31 @@ class Broker:
             selected_config.upstreams[key],
             selected_environment[key],
             event_sink=lambda kind, seconds: self._runtime.duration(key, kind, seconds),
+            idle_sink=lambda worker: self._idle_closed(key, worker),
         )
+
+    def _idle_closed(self, key: str, worker: UpstreamWorker) -> None:
+        if self._shared.get(key) is worker:
+            del self._shared[key]
+        for instance_key, isolated in list(self._isolated.items()):
+            if isolated is worker:
+                del self._isolated[instance_key]
+        if worker.account_close():
+            self._runtime.closed(key)
+            self._runtime.write()
 
     async def _start_worker(self, key: str) -> tuple[UpstreamWorker, tuple[types.Tool, ...]]:
         worker = self._worker(key)
         started = time.monotonic()
         tools = await worker.start()
+        worker.account_spawn()
         self._runtime.spawned(key, time.monotonic() - started)
         return worker, tools
 
     async def _close_worker(self, key: str, worker: UpstreamWorker) -> None:
         await worker.close()
-        self._runtime.closed(key)
+        if worker.account_close():
+            self._runtime.closed(key)
 
     async def _prepare_upstream(
         self,
@@ -104,6 +117,7 @@ class Broker:
         try:
             started = time.monotonic()
             tools = await worker.start()
+            worker.account_spawn()
             self._runtime.spawned(key, time.monotonic() - started)
             self.namespace_tools(key, tools)
         except BaseException as exc:
@@ -180,12 +194,12 @@ class Broker:
             raise UpstreamError(f"upstream '{upstream_key}' is unavailable")
         self._runtime.binding(upstream_key, session_key)
         shared = self._shared.get(upstream_key)
-        if shared is not None:
+        if shared is not None and shared.is_running:
             self._runtime.reused(upstream_key)
             return shared
         instance_key = (session_key, upstream_key)
         worker = self._isolated.get(instance_key)
-        if worker is not None:
+        if worker is not None and worker.is_running:
             self._runtime.reused(upstream_key)
             return worker
         async with self._worker_lock:
@@ -193,13 +207,26 @@ class Broker:
                 raise UpstreamError(f"upstream '{upstream_key}' is unavailable")
             if upstream_key not in self.config.upstreams:
                 raise UpstreamError(f"upstream '{upstream_key}' is unavailable")
+            shared = self._shared.get(upstream_key)
+            if shared is not None and shared.is_running:
+                self._runtime.reused(upstream_key)
+                return shared
+            qualification = self._qualifications.get(upstream_key)
+            if (
+                qualification is not None
+                and qualification.admitted
+                and upstream_key not in self._degraded
+            ):
+                worker, _ = await self._start_worker(upstream_key)
+                self._shared[upstream_key] = worker
+                return worker
             worker = self._isolated.get(instance_key)
-            if worker is None:
+            if worker is None or not worker.is_running:
                 worker, _ = await self._start_worker(upstream_key)
                 self._isolated[instance_key] = worker
             else:
                 self._runtime.reused(upstream_key)
-        return worker
+            return worker
 
     async def reload(self, config: BrokerConfig) -> bool:
         """Atomically adopt changed upstreams without replacing downstream sessions."""

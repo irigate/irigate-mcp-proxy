@@ -25,6 +25,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Unknown fields and duplicate YAML keys are errors.
 - `serial` and `parallel` concurrency are explicit per-upstream contracts.
 - Non-shareable workers are keyed by downstream session and never reused across sessions.
+- Every upstream declares a positive `idle_timeout_seconds`; each shared or isolated worker expires independently when it has no queued or active calls and is recreated on demand.
 - Shutdown closes the HTTP session manager before workers and bounds active-call draining.
 - Requested sharing defaults to isolated when qualification fails; strict mode aborts startup.
 - Qualification probes use fixed non-destructive surfaces and never forward client payloads.

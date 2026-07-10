@@ -17,7 +17,7 @@ It is not an enterprise gateway. Remote access, tenant identity, authorization, 
 2. `app.create_app()` exposes MCP Streamable HTTP on a loopback address, enforces the Origin policy, and watches the selected profile for background reloads. Local non-browser clients may omit `Origin`; malformed or non-loopback origins are rejected.
 3. `Broker` initializes configured upstreams, aggregates `tools/list`, routes exact `<upstream-key>__<tool-name>` calls, and atomically swaps successfully prepared upstream changes.
 4. `Broker` selects a shared worker only when sharing was requested and qualification passed. Otherwise it creates workers scoped to downstream sessions.
-5. `UpstreamWorker` owns one stdio MCP process/session, concurrency control, bounded calls, and termination.
+5. `UpstreamWorker` owns one stdio MCP process/session, concurrency control, bounded calls, per-process idle expiry, and termination.
 6. `RuntimeMetrics` records metadata-only counters and atomically refreshes the configured JSON report.
 7. `AuditLog` writes exactly one metadata-only JSON-line record for every completed or rejected call.
 
@@ -29,7 +29,7 @@ Profiles define:
 - Upstream key, stdio command, arguments, and environment references.
 - Explicit `shareable` mode and qualifier name.
 - Explicit `serial` or `parallel` concurrency.
-- Call timeout and degradation thresholds.
+- Required per-upstream idle timeout, call timeout, and degradation thresholds.
 - Optional runtime-report path.
 
 Constraints:
@@ -67,6 +67,7 @@ Context7 is the qualified shared upstream in `profiles/mvp.yaml`. Its qualifier 
 - `serial` workers admit one call at a time; `parallel` workers permit concurrent calls.
 - Locks are per upstream. A slow or failed upstream must not block unrelated upstreams.
 - Calls have bounded timeouts and report queue and call durations separately.
+- Every worker shuts down independently after `idle_timeout_seconds` with no queued or active calls. The next call creates a fresh worker in the same effective sharing mode.
 - Shutdown stops new work, bounds active-call draining, closes MCP sessions, terminates child processes, and kills only children that outlive the termination interval.
 - Client disconnects and repeated broker lifecycles must leave no orphan upstream processes.
 - Reload drains retired workers after the replacement routing table is active; unchanged workers continue without restart.
@@ -120,7 +121,7 @@ Neither surface may contain arguments, results, environment values, commands, au
 1. Extend the typed model with an explicit default or required field.
 2. Keep unknown-field rejection intact.
 3. Thread the typed value through runtime code; do not pass raw YAML mappings.
-4. Add valid, invalid, default, and output-redaction tests.
+4. Add valid, invalid, required-field, and output-redaction tests.
 5. Update profiles and the owning DOX contract when responsibilities or constraints change.
 
 ### Add telemetry

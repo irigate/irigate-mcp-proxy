@@ -37,6 +37,7 @@ class UpstreamConfig(BaseModel):
     qualifier: str | None = None
     concurrency: Literal["serial", "parallel"] = "serial"
     call_timeout_seconds: Annotated[float, Field(gt=0, le=3600)] = 30
+    idle_timeout_seconds: Annotated[float, Field(gt=0, le=86400)]
     failure_threshold: Annotated[int, Field(ge=1, le=100)] = 5
     crash_threshold: Annotated[int, Field(ge=1, le=100)] = 2
 

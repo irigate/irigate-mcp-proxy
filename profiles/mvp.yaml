@@ -13,6 +13,7 @@ upstreams:
     qualifier: context7-readonly-v3
     concurrency: serial
     call_timeout_seconds: 30
+    idle_timeout_seconds: 300
 
   code-review-graph:
     transport: stdio
@@ -22,3 +23,4 @@ upstreams:
     shareable: false
     concurrency: parallel
     call_timeout_seconds: 30
+    idle_timeout_seconds: 300

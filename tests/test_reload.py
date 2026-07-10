@@ -36,6 +36,7 @@ def write_profile(path: Path, port: int, server: Path) -> None:
                         "shareable": False,
                         "concurrency": "serial",
                         "call_timeout_seconds": 1,
+                        "idle_timeout_seconds": 60,
                     }
                 },
             },

@@ -26,6 +26,7 @@ upstreams:
     qualifier: context7-readonly-v3
     concurrency: serial
     call_timeout_seconds: 30
+    idle_timeout_seconds: 300
   echo:
     transport: stdio
     command: python3
@@ -34,6 +35,7 @@ upstreams:
     shareable: false
     concurrency: parallel
     call_timeout_seconds: 5
+    idle_timeout_seconds: 60
 """
 
 
@@ -54,6 +56,7 @@ def test_loads_valid_profile_and_resolves_environment_by_name(
     assert config.host == "127.0.0.1"
     assert config.port == 8765
     assert config.upstreams["context7"].shareable is True
+    assert config.upstreams["context7"].idle_timeout_seconds == 300
     assert config.environment_names == frozenset({"TEST_CONTEXT7_API_KEY"})
     assert config.resolve_environment()["context7"] == {
         "CONTEXT7_API_KEY": "synthetic-secret-value"
@@ -119,6 +122,23 @@ def test_rejects_unknown_fields(tmp_path: Path) -> None:
     profile = VALID_PROFILE.replace("port: 8765", "port: 8765\nremote_access: true")
 
     with pytest.raises(ConfigurationError, match="remote_access"):
+        load_config(write_profile(tmp_path, profile))
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "86401"])
+def test_rejects_invalid_idle_timeout(tmp_path: Path, value: str) -> None:
+    profile = VALID_PROFILE.replace(
+        "idle_timeout_seconds: 60", f"idle_timeout_seconds: {value}"
+    )
+
+    with pytest.raises(ConfigurationError, match="idle_timeout_seconds"):
+        load_config(write_profile(tmp_path, profile))
+
+
+def test_requires_idle_timeout(tmp_path: Path) -> None:
+    profile = VALID_PROFILE.replace("    idle_timeout_seconds: 60\n", "")
+
+    with pytest.raises(ConfigurationError, match="idle_timeout_seconds"):
         load_config(write_profile(tmp_path, profile))
 
 

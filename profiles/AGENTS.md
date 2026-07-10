@@ -15,6 +15,7 @@ Validated static broker profiles used by the package, runtime qualification, and
 - Environment entries, when needed, use `${ENV_NAME}` references resolved only from the broker process.
 - The MVP code-review-graph upstream uses the installed `code-review-graph` executable directly and resolves the broker user's global `~/.code-review-graph/registry.json`; repository paths passed to its tools remain absolute.
 - `shareable: true` entries name a registered upstream-specific qualifier.
+- Every upstream declares `idle_timeout_seconds`; profiles do not rely on a hidden lifecycle default.
 - Profiles bind to loopback and configure stdio upstreams only.
 
 ## Work Guidance

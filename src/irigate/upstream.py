@@ -36,17 +36,33 @@ class UpstreamWorker:
         config: UpstreamConfig,
         environment: dict[str, str],
         event_sink: Callable[[str, float], None] | None = None,
+        idle_sink: Callable[[UpstreamWorker], None] | None = None,
     ) -> None:
         self.key = key
         self.config = config
         self.environment = environment
         self._event_sink = event_sink
+        self._idle_sink = idle_sink
         self.tools: tuple[types.Tool, ...] = ()
         self._queue: asyncio.Queue[_Call | None] = asyncio.Queue()
         self._ready: asyncio.Future[tuple[types.Tool, ...]] | None = None
         self._task: asyncio.Task[None] | None = None
         self._active_results: set[asyncio.Future[types.CallToolResult]] = set()
         self._parallel_tasks: set[asyncio.Task[None]] = set()
+        self._live_accounted = False
+
+    @property
+    def is_running(self) -> bool:
+        return self._task is not None and not self._task.done()
+
+    def account_spawn(self) -> None:
+        self._live_accounted = True
+
+    def account_close(self) -> bool:
+        if not self._live_accounted:
+            return False
+        self._live_accounted = False
+        return True
 
     async def start(self) -> tuple[types.Tool, ...]:
         if self._task is not None:
@@ -77,7 +93,17 @@ class UpstreamWorker:
                     if not self._ready.done():
                         self._ready.set_result(tools)
                     while True:
-                        request = await self._queue.get()
+                        try:
+                            request = await asyncio.wait_for(
+                                self._queue.get(),
+                                timeout=self.config.idle_timeout_seconds,
+                            )
+                        except asyncio.TimeoutError:
+                            if self._parallel_tasks:
+                                continue
+                            if self._idle_sink is not None:
+                                self._idle_sink(self)
+                            return
                         if request is None:
                             if self._parallel_tasks:
                                 await asyncio.gather(

@@ -23,6 +23,7 @@ def upstream(
     shareable: bool = False,
     qualifier: str | None = None,
     timeout: float = 1.0,
+    idle_timeout: float = 60.0,
 ) -> dict[str, Any]:
     return {
         "transport": "stdio",
@@ -33,6 +34,7 @@ def upstream(
         "qualifier": qualifier,
         "concurrency": "serial",
         "call_timeout_seconds": timeout,
+        "idle_timeout_seconds": idle_timeout,
     }
 
 
