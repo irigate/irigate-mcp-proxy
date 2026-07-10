@@ -1,13 +1,9 @@
 name: hermes-vc-gateway
 description: >-
-  Heavy MCP servers shared across the operator's agents — code-review-graph,
-  DocumentDB, context7, pencil, shadcn, Astro, DeepWiki, and the
-  compliance-hardened filesystem upstream (fs; see docs/MCP-PROXY.md
-  §Filesystem upstream). Each agent declares one mcpServers entry
-  pointing at this profile via X-Profile: hermes-vc-gateway.
-  Upstreams are initialized lazily on first use (tools/list for discovery,
-  tools/call for env-specific forks; see the gateway spec's §Fork
-  semantics); the agent spawns zero subprocesses of its own.
+  Pre-implementation inventory of heavy MCP servers used by the operator.
+  This file is input to the sharing and benchmark spikes in
+  IMPLEMENTATION-PLAN.md; it is not production-ready configuration and
+  does not imply that every listed upstream is safe to share.
 
 upstreams:
   - key: code-review-graph
@@ -27,13 +23,9 @@ upstreams:
 
   - key: DocumentDB
     transport: stdio
-    command: npx
-    args: ["-y", "awslabs.documentdb-mcp-server@latest"]
-    env:
-      DOCUMENTDB_CONNECTION_STRING: >-
-        MongoDB connection string for the local DocumentDB instance.
-        Operators on the workstation pass this via ?env=DocumentDB.DOCUMENTDB_CONNECTION_STRING=.
-        It is intentionally not inherited from the gateway shell environment.
+    command: uvx
+    args: ["awslabs.documentdb-mcp-server@latest"]
+    env: {}
     inherit_os_env:
       - PATH
       - HOME
@@ -42,7 +34,7 @@ upstreams:
       - LC_ALL
       - TZ
       - NODE_EXTRA_CA_CERTS
-      - NPM_CONFIG_CACHE
+      - UV_CACHE_DIR
     call_timeout_seconds: 15
 
   - key: context7
@@ -97,52 +89,3 @@ upstreams:
       - TZ
       - NPM_CONFIG_CACHE
     call_timeout_seconds: 30
-
-  - key: Astro
-    transport: streamable_http
-    url: https://mcp.example.com/astro
-    headers: {}
-    env:
-      ASTRO_TOKEN: >-
-        Bearer token for the Astro docs MCP server. Inherit via
-        the gateway's process environment (AWS Secrets Manager sync
-        is out of scope for this spec — operators wire their own
-        secrets loader).
-    inherit_os_env: []
-    call_timeout_seconds: 60
-
-  - key: DeepWiki
-    transport: streamable_http
-    url: https://mcp.deepwiki.com/mcp   # streamable HTTP endpoint; /sse is the deprecated SSE transport
-    headers: {}
-    env: {}
-    inherit_os_env: []
-    call_timeout_seconds: 60
-
-  # 8th upstream: compliance-hardened filesystem server.
-  # See docs/MCP-PROXY.md §Filesystem upstream for the full contract.
-  # The gateway treats the `fs:` block as opaque and serialises it into
-  # $IRIGATE_UPSTREAM_CONFIG for the upstream subprocess. The upstream
-  # itself enforces the deny-list, path-jail, and size limits; the
-  # gateway does NOT inspect tool-call arguments or responses.
-  - key: fs
-    transport: stdio
-    command: python3
-    args: ["-m", "irigate.mcp_filesystem"]
-    env: {}
-    fs:
-      allowed_roots:
-        - "$HERMES_KANBAN_WORKSPACE"   # resolved at fork time; empty string when env var unset
-        - "~/.irigate/notes"            # operator-curated notes dir (read-only by default)
-      blocked_patterns_extra:
-        - "*.local.json"                # operator adds to the default deny list
-      max_file_size_mb: 10
-      read_only: true                   # read_file + list + search only; no write
-    inherit_os_env:
-      - PATH
-      - HOME
-      - LANG
-      - LC_ALL
-      - TZ
-    ttl_seconds: 300
-    call_timeout_seconds: 15
