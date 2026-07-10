@@ -83,6 +83,8 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 ## Architectural decisions
 
 - **Agent harness protected by tirith.sh.** Reading passwords or access tokens is prohibited. Extract variables from `.env` / config files without relaying their values; use environment variables by importing them for Bash execution. `***` in output is a tirith redaction marker, not a literal value — never "fix" it to a variable ref.
+- **Local MCP broker scope.** Irigate validates loopback-only sharing of explicitly approved stdio MCP upstreams. It is not an enterprise governance, compliance, multi-tenant, or general model-API gateway.
+- **No request-delivered credentials.** Credentials must never be accepted through URLs, query parameters, command arguments, logs, or committed profiles. Runtime configuration may reference broker-process environment variables without exposing their values.
 
 ## Session-start tooling
 
@@ -90,4 +92,10 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 
 ## Child DOX Index
 
-This project is not yet indexed. Before continuing you must scan the project, build the DOX tree and replace this message with the actual index. Go deep and scan files recursively to properly evaluate complexity and create nested DOX files where needed.
+- `profiles/AGENTS.md` — Pre-implementation workload and smoke-test profile inputs.
+
+Root-owned artifacts:
+
+- `README.md` — Current product boundary, MVP summary, and project status.
+- `IMPLEMENTATION-PLAN.md` — Phased implementation contract, experimental gates, intended package layout, and verification.
+- `MARKET-RESEARCH.md` — Market hypothesis, competitive positioning, evidence requirements, and go/no-go criteria.
