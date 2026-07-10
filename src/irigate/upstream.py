@@ -41,7 +41,8 @@ class UpstreamWorker:
         self._queue: asyncio.Queue[_Call | None] = asyncio.Queue()
         self._ready: asyncio.Future[tuple[types.Tool, ...]] | None = None
         self._task: asyncio.Task[None] | None = None
-        self._current: asyncio.Future[types.CallToolResult] | None = None
+        self._active_results: set[asyncio.Future[types.CallToolResult]] = set()
+        self._parallel_tasks: set[asyncio.Task[None]] = set()
 
     async def start(self) -> tuple[types.Tool, ...]:
         if self._task is not None:
@@ -74,34 +75,50 @@ class UpstreamWorker:
                     while True:
                         request = await self._queue.get()
                         if request is None:
-                            return
-                        self._current = request.result
-                        try:
-                            result = await session.call_tool(request.tool, request.arguments)
-                        except BaseException as exc:
-                            if not request.result.done():
-                                request.result.set_exception(
-                                    UpstreamError(f"upstream '{self.key}' call failed")
+                            if self._parallel_tasks:
+                                await asyncio.gather(
+                                    *self._parallel_tasks, return_exceptions=True
                                 )
-                            if isinstance(exc, asyncio.CancelledError):
-                                raise
+                            return
+                        if self.config.concurrency == "parallel":
+                            task = asyncio.create_task(
+                                self._execute_call(session, request),
+                                name=f"irigate-call-{self.key}",
+                            )
+                            self._parallel_tasks.add(task)
+                            task.add_done_callback(self._parallel_tasks.discard)
                         else:
-                            if not request.result.done():
-                                request.result.set_result(result)
-                        finally:
-                            self._current = None
+                            await self._execute_call(session, request)
         except BaseException as exc:
             safe_error = UpstreamError(f"upstream '{self.key}' is unavailable")
             if not self._ready.done():
                 self._ready.set_exception(safe_error)
-            if self._current is not None and not self._current.done():
-                self._current.set_exception(safe_error)
+            for result in self._active_results:
+                if not result.done():
+                    result.set_exception(safe_error)
             while not self._queue.empty():
                 pending = self._queue.get_nowait()
                 if pending is not None and not pending.result.done():
                     pending.result.set_exception(safe_error)
             if isinstance(exc, asyncio.CancelledError):
                 raise
+
+    async def _execute_call(self, session: ClientSession, request: _Call) -> None:
+        self._active_results.add(request.result)
+        try:
+            result = await session.call_tool(request.tool, request.arguments)
+        except BaseException as exc:
+            if not request.result.done():
+                request.result.set_exception(
+                    UpstreamError(f"upstream '{self.key}' call failed")
+                )
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+        else:
+            if not request.result.done():
+                request.result.set_result(result)
+        finally:
+            self._active_results.discard(request.result)
 
     async def call_tool(
         self, tool: str, arguments: dict[str, Any]

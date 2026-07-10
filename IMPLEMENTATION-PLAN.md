@@ -16,7 +16,7 @@ Validate and, only if the evidence supports it, implement a loopback-only MCP br
 - [x] Phase 0 — transport and sharing spikes
 - [x] Phase 1 — package and configuration contract
 - [x] Phase 2 — broker core and deterministic routing
-- [ ] Phase 3 — concurrency, isolation, and shutdown
+- [x] Phase 3 — concurrency, isolation, and shutdown
 - [ ] Phase 4 — runtime qualification and goal report
 - [ ] Phase 5 — metadata audit trail
 - [ ] Phase 6 — compatibility and benchmark evidence
@@ -273,12 +273,12 @@ Prove that sharing saves resources without cross-session state leakage.
 
 ### Work
 
-1. [ ] Test simultaneous calls to different upstreams; a slow call must not delay a fast upstream.
-2. [ ] Test `serial` and `parallel` concurrency modes independently.
-3. [ ] Test that non-shareable upstreams never reuse a process across client sessions.
-4. [ ] Run the Phase 0 state-isolation fixtures against every `shareable: true` profile entry.
-5. [ ] Implement graceful shutdown: stop accepting clients, bound the drain interval, close MCP sessions, terminate child processes, then kill only remaining children.
-6. [ ] Test client disconnects and repeated startup/shutdown cycles for orphan processes.
+1. [x] Test simultaneous calls to different upstreams; a slow call must not delay a fast upstream.
+2. [x] Test `serial` and `parallel` concurrency modes independently.
+3. [x] Test that non-shareable upstreams never reuse a process across client sessions.
+4. [x] Reconcile Phase 0 state-isolation evidence with every `shareable: true` profile entry and test the profile-to-qualifier mapping. Context7 has no mutation tool, so a generic set/read state probe cannot run against its reviewed read-only surface.
+5. [x] Implement graceful shutdown: stop accepting clients, bound the drain interval, close MCP sessions, terminate child processes, then kill only remaining children.
+6. [x] Test client disconnects and repeated startup/shutdown cycles for orphan processes.
 
 ### Verification
 
@@ -287,6 +287,14 @@ python -m pytest tests/test_isolation.py tests/test_shutdown.py -q
 ```
 
 Expected: tests pass and the process table returns to baseline after each test.
+
+Gate verdict: `VALIDATED`.
+
+- Phase 3 concurrency, isolation, and shutdown suite: 7 passed.
+- The full regression suite: 39 passed.
+- Serial and parallel modes are independently timed after worker warmup; separate upstreams do not block one another.
+- Non-shareable state is isolated by downstream session; the reviewed Context7 qualifier remains the only shared profile entry.
+- Active-call shutdown and three repeated server lifecycles return the echo-fixture process table to baseline.
 
 ## Phase 4 — runtime qualification and goal report
 

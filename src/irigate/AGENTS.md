@@ -20,6 +20,9 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Profile environment values are `${ENV_NAME}` references only; values come from the broker process and never appear in validation output.
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields and duplicate YAML keys are errors.
+- `serial` and `parallel` concurrency are explicit per-upstream contracts.
+- Non-shareable workers are keyed by downstream session and never reused across sessions.
+- Shutdown closes the HTTP session manager before workers and bounds active-call draining.
 
 ## Work Guidance
 

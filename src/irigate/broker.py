@@ -26,6 +26,7 @@ class Broker:
         self._exposed_tools: tuple[types.Tool, ...] = ()
         self._worker_lock = asyncio.Lock()
         self._started = False
+        self._closing = False
 
     @property
     def tools(self) -> list[types.Tool]:
@@ -48,6 +49,7 @@ class Broker:
     async def start(self) -> None:
         if self._started:
             return
+        self._closing = False
         exposed: list[types.Tool] = []
         try:
             for key, upstream_config in self.config.upstreams.items():
@@ -73,6 +75,8 @@ class Broker:
         self._started = True
 
     async def worker_for(self, upstream_key: str, session_key: Hashable) -> UpstreamWorker:
+        if self._closing:
+            raise UpstreamError(f"upstream '{upstream_key}' is unavailable")
         shared = self._shared.get(upstream_key)
         if shared is not None:
             return shared
@@ -81,6 +85,8 @@ class Broker:
         if worker is not None:
             return worker
         async with self._worker_lock:
+            if self._closing:
+                raise UpstreamError(f"upstream '{upstream_key}' is unavailable")
             worker = self._isolated.get(instance_key)
             if worker is None:
                 upstream_config = self.config.upstreams[upstream_key]
@@ -119,9 +125,11 @@ class Broker:
         )
 
     async def close(self) -> None:
-        workers = [*self._shared.values(), *self._isolated.values()]
-        self._shared.clear()
-        self._isolated.clear()
+        async with self._worker_lock:
+            self._closing = True
+            workers = [*self._shared.values(), *self._isolated.values()]
+            self._shared.clear()
+            self._isolated.clear()
         if workers:
             await asyncio.gather(*(worker.close() for worker in workers), return_exceptions=True)
         self._started = False
