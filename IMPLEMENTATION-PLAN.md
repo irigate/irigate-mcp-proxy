@@ -13,7 +13,7 @@ Validate and, only if the evidence supports it, implement a loopback-only MCP br
 
 ## Execution state
 
-- [ ] Phase 0 — transport and sharing spikes (in progress)
+- [x] Phase 0 — transport and sharing spikes
 - [ ] Phase 1 — package and configuration contract
 - [ ] Phase 2 — broker core and deterministic routing
 - [ ] Phase 3 — concurrency, isolation, and shutdown
@@ -158,15 +158,15 @@ Kill the project early if the MCP transport or process-sharing assumptions do no
 
 ### Work
 
-1. [ ] Pin a candidate Python and MCP SDK version inside each spike, not in production packaging yet.
-2. [ ] Prove a Streamable HTTP client can complete `initialize`, `tools/list`, and `tools/call` through a broker into one stdio echo server.
-3. [ ] Connect two clients simultaneously and prove responses return to the correct caller.
-4. [ ] Run the same test against two real candidate upstreams from the operator's workload.
-5. [ ] For every candidate shared upstream, test whether state created by client A is observable by client B.
-6. [ ] Test client disconnect, upstream crash, request timeout, and broker shutdown.
-7. [ ] Separate properties that can be checked generically from properties requiring an upstream-specific safe probe.
-8. [ ] Verify that malformed and non-loopback `Origin` headers are rejected; document and test the explicit no-Origin policy required by supported non-browser local clients.
-9. [ ] Record exact commands, versions, results, and a `VALIDATED`, `PARTIAL`, or `INVALIDATED` verdict in each spike README.
+1. [x] Pin a candidate Python and MCP SDK version inside each spike, not in production packaging yet.
+2. [x] Prove a Streamable HTTP client can complete `initialize`, `tools/list`, and `tools/call` through a broker into one stdio echo server.
+3. [x] Connect two clients simultaneously and prove responses return to the correct caller.
+4. [x] Run the same test against two real candidate upstreams from the operator's workload.
+5. [x] For every candidate shared upstream, test whether state created by client A is observable by client B.
+6. [x] Test client disconnect, upstream crash, request timeout, and broker shutdown.
+7. [x] Separate properties that can be checked generically from properties requiring an upstream-specific safe probe.
+8. [x] Verify that malformed and non-loopback `Origin` headers are rejected; document and test the explicit no-Origin policy required by supported non-browser local clients.
+9. [x] Record exact commands, versions, results, and a `VALIDATED`, `PARTIAL`, or `INVALIDATED` verdict in each spike README.
 
 ### Gate
 
@@ -179,6 +179,12 @@ Continue only if:
 - Streamable HTTP requests enforce the MCP Origin-validation requirement without accepting remote origins, and the tested no-Origin behavior is documented.
 
 If no expensive upstream is safe to share, stop: the core resource-consolidation value is invalidated.
+
+Gate verdict: `VALIDATED`.
+
+- [`001-streamable-http-roundtrip`](spikes/001-streamable-http-roundtrip/README.md) validates the official SDK transport, concurrent correlation, reconnect, timeout, Origin policy, and graceful shutdown.
+- [`002-shared-upstream-state`](spikes/002-shared-upstream-state/README.md) admits Context7's current fixed-identity read-only surface, keeps code-review-graph isolated, and contains an upstream process crash.
+- [`003-multi-client-compatibility`](spikes/003-multi-client-compatibility/README.md) validates direct Streamable HTTP tool calls from Hermes and Kilo/OpenCode. Claude Code and Codex remain open compatibility targets because their installed clients are not currently authenticated.
 
 ## Phase 1 — package and configuration contract
 

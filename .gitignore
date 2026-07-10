@@ -1,0 +1,5 @@
+# Local spikes and tool caches
+spikes/**/.venv/
+spikes/**/uv.lock
+.code-review-graph/
+__pycache__/
