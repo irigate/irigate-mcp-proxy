@@ -17,6 +17,53 @@ A broker may improve this when:
 
 Sharing is not universally safe. Some MCP servers retain client-specific state, and distinct workspaces or credentials may still require separate instances. Irigate must prove the benefit per upstream rather than assuming every N×M process set can collapse to M.
 
+## Requirements
+
+- Python 3.11 through 3.14.
+- [`uv`](https://docs.astral.sh/uv/) for installation and execution.
+- Node.js with `npx` for the Context7 upstream in `profiles/mvp.yaml`.
+- `uvx`, installed with `uv`, for the isolated code-review-graph upstream.
+
+The default profile starts real MCP upstreams. Its first run may download their pinned or current package artifacts and requires network access.
+
+## Install
+
+From a repository checkout, create the project environment from the locked dependencies:
+
+```bash
+cd irigate-proxy
+uv sync --frozen
+```
+
+Confirm that the CLI and default profile load without starting upstream processes:
+
+```bash
+uv run --frozen irigate --help
+uv run --frozen irigate --config profiles/mvp.yaml --check
+```
+
+## Run
+
+Start the broker in the foreground with strict sharing admission:
+
+```bash
+uv run --frozen irigate \
+  --config profiles/mvp.yaml \
+  --require-qualified-sharing
+```
+
+The broker qualifies Context7, starts the configured stdio upstreams, and listens at `http://127.0.0.1:8765/mcp`. Configure MCP clients to use that URL with the Streamable HTTP transport. Stop the broker with `Ctrl+C`; shutdown drains active calls and closes child processes.
+
+Strict mode aborts startup if Context7 cannot be qualified. Omit `--require-qualified-sharing` to keep the broker running with failed shared upstreams downgraded to isolated mode.
+
+Run qualification without opening the client endpoint when diagnosing startup:
+
+```bash
+uv run --frozen irigate qualify --config profiles/mvp.yaml
+```
+
+Audit records are written as JSON lines to stderr. The default profile atomically refreshes `.irigate/runtime-report.json` with metadata-only process, reuse, timing, and failure counters.
+
 ## Current capabilities
 
 - Streamable HTTP endpoint bound to `127.0.0.1`.
@@ -25,7 +72,7 @@ Sharing is not universally safe. Some MCP servers retain client-specific state, 
 - Explicit `shareable: true` opt-in per upstream; isolated by default.
 - Deterministic `<upstream-key>__<tool-name>` routing.
 - Configurable serial or parallel call handling per upstream.
-- Metadata-only JSON-lines telemetry: upstream, tool, duration, outcome, and error class.
+- Metadata-only JSON-lines telemetry: timestamp, upstream, tool, duration, and outcome.
 - Automated compatibility and resource benchmarks for 1, 5, and 20 clients.
 
 ## Not part of the MVP
