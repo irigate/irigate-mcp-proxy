@@ -36,7 +36,7 @@ Sharing is not universally safe. Some MCP servers retain client-specific state, 
 - Python 3.11 through 3.14.
 - [`uv`](https://docs.astral.sh/uv/) for installation and execution.
 - Node.js with `npx` for the Context7 upstream in `profiles/mvp.yaml`.
-- `uvx`, installed with `uv`, for the isolated code-review-graph upstream.
+- An installed `code-review-graph` executable for the isolated code-review-graph upstream.
 
 The default profile starts real MCP upstreams. Its first run may download their pinned or current package artifacts and requires network access.
 

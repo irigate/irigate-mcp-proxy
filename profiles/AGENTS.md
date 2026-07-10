@@ -6,13 +6,14 @@ Validated static broker profiles used by the package, runtime qualification, and
 
 ## Ownership
 
-- `mvp.yaml` is the primary local profile: qualified shared Context7 plus isolated code-review-graph.
+- `mvp.yaml` is the primary local profile: qualified shared Context7 plus isolated code-review-graph backed by the global `~/.code-review-graph/` datastore and registry.
 - `benchmark-heavy.yaml` adds a third isolated upstream for resource and latency measurement.
 
 ## Local Contracts
 
 - Profile files conform to `irigate.models.BrokerConfig` and contain no credential values.
 - Environment entries, when needed, use `${ENV_NAME}` references resolved only from the broker process.
+- The MVP code-review-graph upstream uses the installed `code-review-graph` executable directly and resolves the broker user's global `~/.code-review-graph/registry.json`; repository paths passed to its tools remain absolute.
 - `shareable: true` entries name a registered upstream-specific qualifier.
 - Profiles bind to loopback and configure stdio upstreams only.
 

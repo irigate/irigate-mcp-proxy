@@ -16,8 +16,8 @@ upstreams:
 
   code-review-graph:
     transport: stdio
-    command: uvx
-    args: ["code-review-graph", "serve"]
+    command: code-review-graph
+    args: ["serve"]
     env: {}
     shareable: false
     concurrency: parallel
