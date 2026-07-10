@@ -2,7 +2,21 @@
 
 > Shared local MCP infrastructure for developers running multiple AI coding agents.
 
+<p align="center">
+  <img src="assets/logo.svg" alt="Irigate — an Iris flower opening into a gateway" width="760">
+</p>
+
 Irigate is a loopback-only MCP broker. It lets local agent sessions share explicitly qualified stdio MCP servers, reducing duplicate processes while providing metadata-only runtime reports and one audit record for every completed or rejected tool call.
+
+## Feature overview
+
+| | Capability | | Capability |
+|---|---|---|---|
+| **⌁** | **One local MCP endpoint**<br>Connect Hermes, Claude Code, Codex, and other Streamable HTTP clients to the same loopback broker. | **⟲** | **Connection-preserving reloads**<br>Apply profile changes in the background without disconnecting active AI-agent sessions. |
+| **◈** | **Selective process reuse**<br>Share qualified stdio servers across compatible sessions and restart only upstreams whose configuration changed. | **⛨** | **Fail-closed sharing**<br>Keep upstreams isolated by default; sharing requires explicit opt-in and an upstream-specific qualifier. |
+| **⎇** | **Exact namespaced routing**<br>Expose deterministic `<upstream>__<tool>` names and reject ambiguous or unknown routes. | **◎** | **Session isolation**<br>Scope non-shareable workers to downstream sessions so context-bound state never leaks across agents. |
+| **⚡** | **Explicit concurrency**<br>Choose serial or parallel execution per upstream, with independent queues and bounded call timeouts. | **◷** | **Bounded lifecycle**<br>Drain active work, close MCP sessions, and terminate child processes without leaving orphans. |
+| **◇** | **Metadata-only observability**<br>Record outcomes, durations, reuse, failures, and process counts without payloads, commands, or credentials. | **⚖** | **Measured compatibility**<br>Run qualification, multi-client compatibility checks, and repeatable 1/5/20-client resource benchmarks. |
 
 ## Problem hypothesis
 
@@ -66,17 +80,6 @@ uv run --frozen irigate qualify --config profiles/mvp.yaml
 
 Audit records are written as JSON lines to stderr. The default profile atomically refreshes `.irigate/runtime-report.json` with metadata-only process, reuse, timing, and failure counters.
 
-## Current capabilities
-
-- Streamable HTTP endpoint bound to `127.0.0.1`.
-- YAML configuration loaded at startup and reloaded automatically when the profile changes.
-- Static profiles for qualified shared and isolated stdio upstreams.
-- Explicit `shareable: true` opt-in per upstream; isolated by default.
-- Deterministic `<upstream-key>__<tool-name>` routing.
-- Configurable serial or parallel call handling per upstream.
-- Metadata-only JSON-lines telemetry: timestamp, upstream, tool, duration, and outcome.
-- Automated compatibility and resource benchmarks for 1, 5, and 20 clients.
-
 ## Not part of the MVP
 
 - Enterprise governance or compliance claims
@@ -128,6 +131,7 @@ Irigate is positioned as local AI developer infrastructure, not as a competitor 
 
 - `IMPLEMENTATION.md` — Current architecture, contracts, extension workflows, and verification.
 - `MARKET-RESEARCH.md` — Market hypothesis, measured evidence, positioning, and go/no-go criteria.
+- `assets/` — Reproducible Iris-gate project mark, lockup, and raster exports.
 - `profiles/` — Validated loopback-only runtime and benchmark profiles.
 - `src/irigate/` — Installable package, configuration models, loader, and CLI.
 - `tests/` — Executable package and runtime contracts.

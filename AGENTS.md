@@ -93,6 +93,7 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 
 ## Child DOX Index
 
+- `assets/AGENTS.md` — Reproducible project brand assets and Iris-gate design contract.
 - `profiles/AGENTS.md` — Validated static runtime and benchmark profiles.
 - `scripts/AGENTS.md` — Repeatable production compatibility and benchmark evidence harnesses.
 - `spikes/AGENTS.md` — Disposable transport, sharing, failure, and client-compatibility evidence.
