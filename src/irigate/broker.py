@@ -7,6 +7,7 @@ from typing import Any, Hashable
 
 from mcp import types
 
+from irigate.audit import AuditLog
 from irigate.models import BrokerConfig
 from irigate.qualification import QualificationResult, qualify_upstream
 from irigate.runtime_report import RuntimeMetrics
@@ -29,6 +30,7 @@ class Broker:
         self.config = config
         self.require_qualified_sharing = require_qualified_sharing
         self._environment = config.resolve_environment()
+        self._audit = AuditLog()
         self._runtime = RuntimeMetrics(config)
         self._qualifications: dict[str, QualificationResult] = {}
         self._shared: dict[str, UpstreamWorker] = {}
@@ -168,12 +170,33 @@ class Broker:
         arguments: dict[str, Any],
         session_key: Hashable,
     ) -> types.CallToolResult:
+        audit_started = time.monotonic()
         upstream_key, separator, tool_name = name.partition("__")
         if not separator or upstream_key not in self.config.upstreams:
+            self._audit.emit(
+                upstream=None,
+                tool=name,
+                outcome="invalid_tool",
+                duration_seconds=time.monotonic() - audit_started,
+            )
             return self._error("unknown upstream prefix")
         tools = self._tools_by_upstream[upstream_key]
         if tool_name not in tools:
+            self._audit.emit(
+                upstream=upstream_key,
+                tool=tool_name,
+                outcome="invalid_tool",
+                duration_seconds=time.monotonic() - audit_started,
+            )
             return self._error(f"unknown tool for upstream '{upstream_key}'")
+        if self._closing:
+            self._audit.emit(
+                upstream=upstream_key,
+                tool=tool_name,
+                outcome="shutdown",
+                duration_seconds=time.monotonic() - audit_started,
+            )
+            return self._error("broker is shutting down")
         try:
             worker = await self.worker_for(upstream_key, session_key)
             started = time.monotonic()
@@ -185,12 +208,30 @@ class Broker:
                 )
             if result.isError:
                 await self._record_failure(upstream_key, crash=False)
+            self._audit.emit(
+                upstream=upstream_key,
+                tool=tool_name,
+                outcome="upstream_error" if result.isError else "success",
+                duration_seconds=time.monotonic() - audit_started,
+            )
             return result
         except UpstreamTimeout as exc:
             await self._record_failure(upstream_key, crash=False)
+            self._audit.emit(
+                upstream=upstream_key,
+                tool=tool_name,
+                outcome="timeout",
+                duration_seconds=time.monotonic() - audit_started,
+            )
             return self._error(str(exc))
         except UpstreamError:
             await self._record_failure(upstream_key, crash=True)
+            self._audit.emit(
+                upstream=upstream_key,
+                tool=tool_name,
+                outcome="upstream_error",
+                duration_seconds=time.monotonic() - audit_started,
+            )
             return self._error(f"upstream '{upstream_key}' is unavailable")
         finally:
             self._runtime.write()

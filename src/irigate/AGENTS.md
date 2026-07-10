@@ -14,6 +14,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `upstream.py` owns one stdio process/session worker and bounded calls.
 - `qualification.py` owns generic checks and reviewed upstream-specific sharing admission.
 - `runtime_report.py` owns metadata-only counters and atomic JSON snapshots.
+- `audit.py` owns one metadata-only JSON-line record per completed or rejected call.
 
 ## Local Contracts
 
@@ -29,6 +30,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Qualification probes use fixed non-destructive surfaces and never forward client payloads.
 - Runtime reports contain counts, durations, modes, and upstream keys only.
 - A degraded shared upstream remains degraded until process restart.
+- Audit records contain timestamp, upstream key, tool name, outcome, and duration only.
+- Arguments, results, environment values, commands, and credentials never enter audit records.
 
 ## Work Guidance
 

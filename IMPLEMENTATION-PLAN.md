@@ -18,7 +18,7 @@ Validate and, only if the evidence supports it, implement a loopback-only MCP br
 - [x] Phase 2 — broker core and deterministic routing
 - [x] Phase 3 — concurrency, isolation, and shutdown
 - [x] Phase 4 — runtime qualification and goal report
-- [ ] Phase 5 — metadata audit trail
+- [x] Phase 5 — metadata audit trail
 - [ ] Phase 6 — compatibility and benchmark evidence
 - [ ] Phase 7 — documentation and release decision
 
@@ -349,10 +349,10 @@ Provide useful operational evidence without collecting tool payloads.
 
 ### Work
 
-1. [ ] Write tests for success, timeout, upstream error, invalid tool, and shutdown outcomes.
-2. [ ] Implement one JSON-line record per completed or rejected call.
-3. [ ] Add tests with sentinel credentials in arguments, results, and environment values.
-4. [ ] Assert sentinel values never occur in captured stdout or stderr.
+1. [x] Write tests for success, timeout, upstream error, invalid tool, and shutdown outcomes.
+2. [x] Implement one JSON-line record per completed or rejected call.
+3. [x] Add tests with sentinel credentials in arguments, results, and environment values.
+4. [x] Assert sentinel values never occur in captured stdout or stderr.
 
 ### Verification
 
@@ -361,6 +361,13 @@ python -m pytest tests/test_audit.py -q
 ```
 
 Expected: valid JSON records contain metadata only; sentinel values are absent.
+
+Gate verdict: `VALIDATED`.
+
+- Phase 5 metadata audit suite: 7 passed.
+- The full regression suite: 59 passed.
+- Success, timeout, upstream error, invalid tool, and shutdown rejection each emit exactly one JSON-line record.
+- Captured stdout/stderr contain neither tested argument/result sentinels nor broker-environment sentinel values.
 
 ## Phase 6 — compatibility and benchmark evidence
 
