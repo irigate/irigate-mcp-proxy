@@ -9,8 +9,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `models.py` owns typed static configuration and fail-closed field validation.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
 - `__main__.py` owns the `irigate` console contract.
-- `app.py` owns the loopback Streamable HTTP application and Origin policy.
-- `broker.py` owns tool aggregation, exact namespaced routing, and worker selection.
+- `app.py` owns the loopback Streamable HTTP application, Origin policy, and background profile watcher.
+- `broker.py` owns tool aggregation, exact namespaced routing, worker selection, and atomic upstream reload.
 - `upstream.py` owns one stdio process/session worker and bounded calls.
 - `qualification.py` owns generic checks and reviewed upstream-specific sharing admission.
 - `runtime_report.py` owns metadata-only counters and atomic JSON snapshots.
@@ -32,6 +32,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - A degraded shared upstream remains degraded until process restart.
 - Audit records contain timestamp, upstream key, tool name, outcome, and duration only.
 - Arguments, results, environment values, commands, and credentials never enter audit records.
+- Reload prepares added and changed upstreams before routing switches, keeps the last valid configuration on failure, and never replaces downstream HTTP sessions.
+- Runtime `host` and `port` changes are rejected; they require replacing the listener.
 
 ## Work Guidance
 

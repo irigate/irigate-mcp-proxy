@@ -52,7 +52,9 @@ uv run --frozen irigate \
   --require-qualified-sharing
 ```
 
-The broker qualifies Context7, starts the configured stdio upstreams, and listens at `http://127.0.0.1:8765/mcp`. Configure MCP clients to use that URL with the Streamable HTTP transport. Stop the broker with `Ctrl+C`; shutdown drains active calls and closes child processes.
+The broker qualifies Context7, starts the configured stdio upstreams, and listens at `http://127.0.0.1:8765/mcp`. Configure MCP clients to use that URL with the Streamable HTTP transport. While running, Irigate watches the selected profile. Valid upstream changes are prepared and swapped in the background; affected stdio servers restart without disconnecting existing Streamable HTTP client sessions. Invalid changes are rejected and the active configuration keeps serving. Changes to `host` or `port` require a broker restart.
+
+Stop the broker with `Ctrl+C`; shutdown drains active calls and closes child processes.
 
 Strict mode aborts startup if Context7 cannot be qualified. Omit `--require-qualified-sharing` to keep the broker running with failed shared upstreams downgraded to isolated mode.
 
@@ -67,7 +69,7 @@ Audit records are written as JSON lines to stderr. The default profile atomicall
 ## Current capabilities
 
 - Streamable HTTP endpoint bound to `127.0.0.1`.
-- Static YAML configuration loaded at startup.
+- YAML configuration loaded at startup and reloaded automatically when the profile changes.
 - Static profiles for qualified shared and isolated stdio upstreams.
 - Explicit `shareable: true` opt-in per upstream; isolated by default.
 - Deterministic `<upstream-key>__<tool-name>` routing.
@@ -96,7 +98,7 @@ Hermes / Claude Code / Codex / test clients
              ┌──────────────┐
              │   Irigate    │
              │              │
-             │ static config│
+             │watched config│
              │ exact routing│
              │ process reuse│
              │ metadata log │

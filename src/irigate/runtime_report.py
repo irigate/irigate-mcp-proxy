@@ -58,6 +58,23 @@ class RuntimeMetrics:
         item.qualification = "qualified" if result.admitted else "rejected"
         item.effective_mode = "shared" if result.admitted else "isolated"
 
+    def reconfigure(self, config: BrokerConfig) -> None:
+        """Adopt a reloaded profile while retaining process and call counters."""
+
+        for key, value in config.upstreams.items():
+            self.ensure_upstream(key, value.shareable, value.qualifier)
+            item = self._upstreams[key]
+            item.requested_mode = "shared" if value.shareable else "isolated"
+            item.qualifier = value.qualifier
+        self.config = config
+
+    def ensure_upstream(self, key: str, shareable: bool, qualifier: str | None) -> None:
+        if key not in self._upstreams:
+            self._upstreams[key] = _UpstreamMetrics(
+                requested_mode="shared" if shareable else "isolated",
+                qualifier=qualifier,
+            )
+
     def effective_mode(self, key: str, mode: str) -> None:
         self._upstreams[key].effective_mode = mode
 
@@ -90,7 +107,8 @@ class RuntimeMetrics:
         upstreams: dict[str, Any] = {}
         avoided = 0
         has_shared_evidence = False
-        for key, item in self._upstreams.items():
+        for key in self.config.upstreams:
+            item = self._upstreams[key]
             clients = len(item.logical_bindings)
             if item.effective_mode == "shared" and clients >= 2:
                 avoided += clients - 1

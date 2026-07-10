@@ -66,6 +66,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         create_app(
             config,
             require_qualified_sharing=args.require_qualified_sharing,
+            config_path=args.config,
         ),
         host=config.host,
         port=config.port,

@@ -9,13 +9,13 @@ status: active
 
 Irigate is a loopback-only MCP broker for local developer workflows. It lets multiple local agent sessions share explicitly qualified stdio MCP servers while preserving isolated-by-default behavior and emitting metadata-only operational evidence.
 
-It is not an enterprise gateway. Remote access, tenant identity, authorization, OAuth, TLS termination, Kubernetes deployment, model-API proxying, dynamic configuration, payload inspection, and compliance claims are outside the product boundary.
+It is not an enterprise gateway. Remote access, tenant identity, authorization, OAuth, TLS termination, Kubernetes deployment, model-API proxying, remote configuration APIs, payload inspection, and compliance claims are outside the product boundary.
 
 ## Runtime architecture
 
-1. `config.load_config()` parses a static YAML profile into typed models, rejects duplicate keys and unknown fields, and resolves only `${ENV_NAME}` references from the broker process environment.
-2. `app.create_app()` exposes MCP Streamable HTTP on a loopback address and enforces the Origin policy. Local non-browser clients may omit `Origin`; malformed or non-loopback origins are rejected.
-3. `Broker` initializes configured upstreams, aggregates `tools/list`, and routes exact `<upstream-key>__<tool-name>` calls.
+1. `config.load_config()` parses a YAML profile into typed models, rejects duplicate keys and unknown fields, and resolves only `${ENV_NAME}` references from the broker process environment.
+2. `app.create_app()` exposes MCP Streamable HTTP on a loopback address, enforces the Origin policy, and watches the selected profile for background reloads. Local non-browser clients may omit `Origin`; malformed or non-loopback origins are rejected.
+3. `Broker` initializes configured upstreams, aggregates `tools/list`, routes exact `<upstream-key>__<tool-name>` calls, and atomically swaps successfully prepared upstream changes.
 4. `Broker` selects a shared worker only when sharing was requested and qualification passed. Otherwise it creates workers scoped to downstream sessions.
 5. `UpstreamWorker` owns one stdio MCP process/session, concurrency control, bounded calls, and termination.
 6. `RuntimeMetrics` records metadata-only counters and atomically refreshes the configured JSON report.
@@ -41,6 +41,14 @@ Constraints:
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields, duplicate YAML keys, unsupported transports, and non-loopback binds are errors.
 
+Runtime reload behavior:
+
+- The profile file is polled in the background while serving.
+- Added and changed upstreams must initialize successfully before the active routing table changes.
+- A successful reload retires only changed or removed upstream workers. Existing downstream Streamable HTTP sessions remain connected and see the refreshed tool list.
+- Invalid files, missing environment references, and failed upstream initialization leave the last valid configuration active.
+- `host` and `port` changes are rejected at runtime because they require replacing the listening socket.
+
 ## Sharing and qualification
 
 MCP transport behavior cannot prove that an upstream is semantically safe to share. Admission therefore combines generic protocol checks with an explicit qualifier:
@@ -61,6 +69,7 @@ Context7 is the qualified shared upstream in `profiles/mvp.yaml`. Its qualifier 
 - Calls have bounded timeouts and report queue and call durations separately.
 - Shutdown stops new work, bounds active-call draining, closes MCP sessions, terminates child processes, and kills only children that outlive the termination interval.
 - Client disconnects and repeated broker lifecycles must leave no orphan upstream processes.
+- Reload drains retired workers after the replacement routing table is active; unchanged workers continue without restart.
 
 ## Routing contract
 
@@ -76,8 +85,8 @@ Neither surface may contain arguments, results, environment values, commands, au
 
 - `src/irigate/models.py` — typed configuration and field validation.
 - `src/irigate/config.py` — duplicate-safe YAML loading and environment-reference resolution.
-- `src/irigate/app.py` — loopback Streamable HTTP application and Origin enforcement.
-- `src/irigate/broker.py` — tool aggregation, exact routing, worker selection, degradation, and shutdown coordination.
+- `src/irigate/app.py` — loopback Streamable HTTP application, Origin enforcement, and profile watching.
+- `src/irigate/broker.py` — tool aggregation, exact routing, worker selection, atomic reload, degradation, and shutdown coordination.
 - `src/irigate/upstream.py` — stdio worker lifecycle, concurrency, bounded calls, and process cleanup.
 - `src/irigate/qualification.py` — generic checks, qualifier registry, and sharing admission.
 - `src/irigate/runtime_report.py` — counters and atomic metadata-only snapshots.
@@ -143,4 +152,4 @@ uv run --frozen python scripts/compatibility.py --config profiles/mvp.yaml
 uv run --frozen python scripts/benchmark.py --config profiles/benchmark-heavy.yaml --clients 1,5,20 --repetitions 3
 ```
 
-The full test suite must prove loopback enforcement, exact routing, qualification fallback, session isolation, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output.
+The full test suite must prove loopback enforcement, exact routing, qualification fallback, session isolation, connection-preserving reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output.

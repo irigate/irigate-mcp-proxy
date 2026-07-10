@@ -8,6 +8,7 @@ from typing import Any, Hashable
 from mcp import types
 
 from irigate.audit import AuditLog
+from irigate.config import ConfigurationError
 from irigate.models import BrokerConfig
 from irigate.qualification import QualificationResult, qualify_upstream
 from irigate.runtime_report import RuntimeMetrics
@@ -39,6 +40,7 @@ class Broker:
         self._tools_by_upstream: dict[str, dict[str, types.Tool]] = {}
         self._exposed_tools: tuple[types.Tool, ...] = ()
         self._worker_lock = asyncio.Lock()
+        self._reload_lock = asyncio.Lock()
         self._started = False
         self._closing = False
 
@@ -49,11 +51,19 @@ class Broker:
     def runtime_snapshot(self) -> dict[str, Any]:
         return self._runtime.snapshot()
 
-    def _worker(self, key: str) -> UpstreamWorker:
+    def _worker(
+        self,
+        key: str,
+        *,
+        config: BrokerConfig | None = None,
+        environment: dict[str, dict[str, str]] | None = None,
+    ) -> UpstreamWorker:
+        selected_config = self.config if config is None else config
+        selected_environment = self._environment if environment is None else environment
         return UpstreamWorker(
             key,
-            self.config.upstreams[key],
-            self._environment[key],
+            selected_config.upstreams[key],
+            selected_environment[key],
             event_sink=lambda kind, seconds: self._runtime.duration(key, kind, seconds),
         )
 
@@ -67,6 +77,45 @@ class Broker:
     async def _close_worker(self, key: str, worker: UpstreamWorker) -> None:
         await worker.close()
         self._runtime.closed(key)
+
+    async def _prepare_upstream(
+        self,
+        key: str,
+        config: BrokerConfig,
+        environment: dict[str, dict[str, str]],
+    ) -> tuple[QualificationResult | None, UpstreamWorker | None, tuple[types.Tool, ...]]:
+        upstream_config = config.upstreams[key]
+        qualification: QualificationResult | None = None
+        if upstream_config.shareable:
+            try:
+                qualification = await qualify_upstream(
+                    key, upstream_config, environment[key]
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise BrokerInitializationError(
+                    f"upstream '{key}' failed qualification"
+                ) from exc
+            if not qualification.admitted and self.require_qualified_sharing:
+                raise BrokerInitializationError(f"upstream '{key}' failed qualification")
+
+        worker = self._worker(key, config=config, environment=environment)
+        try:
+            started = time.monotonic()
+            tools = await worker.start()
+            self._runtime.spawned(key, time.monotonic() - started)
+            self.namespace_tools(key, tools)
+        except BaseException as exc:
+            await self._close_worker(key, worker)
+            raise BrokerInitializationError(
+                f"upstream '{key}' failed initialization"
+            ) from exc
+
+        if qualification is not None and qualification.admitted:
+            return qualification, worker, tools
+        await self._close_worker(key, worker)
+        return qualification, None, tools
 
     def namespace_tools(
         self, upstream_key: str, tools: Sequence[types.Tool]
@@ -142,6 +191,8 @@ class Broker:
         async with self._worker_lock:
             if self._closing:
                 raise UpstreamError(f"upstream '{upstream_key}' is unavailable")
+            if upstream_key not in self.config.upstreams:
+                raise UpstreamError(f"upstream '{upstream_key}' is unavailable")
             worker = self._isolated.get(instance_key)
             if worker is None:
                 worker, _ = await self._start_worker(upstream_key)
@@ -149,6 +200,95 @@ class Broker:
             else:
                 self._runtime.reused(upstream_key)
         return worker
+
+    async def reload(self, config: BrokerConfig) -> bool:
+        """Atomically adopt changed upstreams without replacing downstream sessions."""
+
+        if config.host != self.config.host or config.port != self.config.port:
+            raise ConfigurationError("host and port cannot change while the broker is running")
+
+        async with self._reload_lock:
+            old_config = self.config
+            changed = {
+                key
+                for key in old_config.upstreams.keys() & config.upstreams.keys()
+                if old_config.upstreams[key] != config.upstreams[key]
+            }
+            added = config.upstreams.keys() - old_config.upstreams.keys()
+            removed = old_config.upstreams.keys() - config.upstreams.keys()
+            if not changed and not added and not removed and config == old_config:
+                return False
+
+            environment = config.resolve_environment()
+            prepared: dict[
+                str,
+                tuple[QualificationResult | None, UpstreamWorker | None, tuple[types.Tool, ...]],
+            ] = {}
+            try:
+                for key in config.upstreams:
+                    if key in changed or key in added:
+                        upstream = config.upstreams[key]
+                        self._runtime.ensure_upstream(
+                            key, upstream.shareable, upstream.qualifier
+                        )
+                        prepared[key] = await self._prepare_upstream(key, config, environment)
+            except BaseException:
+                await asyncio.gather(
+                    *(
+                        self._close_worker(key, worker)
+                        for key, (_, worker, _) in prepared.items()
+                        if worker is not None
+                    ),
+                    return_exceptions=True,
+                )
+                raise
+
+            retired: list[tuple[str, UpstreamWorker]] = []
+            async with self._worker_lock:
+                affected = changed | removed
+                for key in affected:
+                    shared = self._shared.pop(key, None)
+                    if shared is not None:
+                        retired.append((key, shared))
+                for instance_key, worker in list(self._isolated.items()):
+                    if instance_key[1] in affected:
+                        retired.append((instance_key[1], worker))
+                        del self._isolated[instance_key]
+
+                self.config = config
+                self._environment = environment
+                self._runtime.reconfigure(config)
+                for key in removed:
+                    self._tools_by_upstream.pop(key, None)
+                    self._qualifications.pop(key, None)
+                    self._degraded.discard(key)
+                for key, (qualification, worker, tools) in prepared.items():
+                    self._tools_by_upstream[key] = {tool.name: tool for tool in tools}
+                    if qualification is None:
+                        self._qualifications.pop(key, None)
+                        self._runtime.effective_mode(key, "isolated")
+                    else:
+                        self._qualifications[key] = qualification
+                        self._runtime.qualification(key, qualification)
+                    if worker is not None:
+                        self._shared[key] = worker
+                        self._runtime.effective_mode(key, "shared")
+                    self._degraded.discard(key)
+                self._exposed_tools = tuple(
+                    exposed
+                    for key in config.upstreams
+                    for exposed in self.namespace_tools(
+                        key, tuple(self._tools_by_upstream[key].values())
+                    )
+                )
+
+            if retired:
+                await asyncio.gather(
+                    *(self._close_worker(key, worker) for key, worker in retired),
+                    return_exceptions=True,
+                )
+            self._runtime.write()
+            return True
 
     async def _record_failure(self, key: str, *, crash: bool) -> None:
         self._runtime.failed(key, crash=crash)

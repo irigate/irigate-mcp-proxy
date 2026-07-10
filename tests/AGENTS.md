@@ -2,11 +2,12 @@
 
 ## Purpose
 
-Executable contracts for Irigate configuration, transport, routing, isolation, shutdown, qualification, reporting, and client compatibility.
+Executable contracts for Irigate configuration, background reload, transport, routing, isolation, shutdown, qualification, reporting, and client compatibility.
 
 ## Ownership
 
 - `test_*.py` files own the behavioral contracts documented in `IMPLEMENTATION.md`.
+- `test_reload.py` owns connection-preserving upstream replacement and failed-reload fallback.
 - `fixtures/` owns credential-free echo, state, and Context7-shaped MCP servers used only by tests.
 - `helpers.py` owns loopback test-server startup and typed test-profile construction.
 
