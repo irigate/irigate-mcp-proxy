@@ -1,0 +1,24 @@
+name: mvp
+host: 127.0.0.1
+port: 8765
+runtime_report_path: .irigate/runtime-report.json
+
+upstreams:
+  context7:
+    transport: stdio
+    command: npx
+    args: ["-y", "@upstash/context7-mcp"]
+    env: {}
+    shareable: true
+    qualifier: context7-readonly-v3
+    concurrency: serial
+    call_timeout_seconds: 30
+
+  code-review-graph:
+    transport: stdio
+    command: uvx
+    args: ["code-review-graph", "serve"]
+    env: {}
+    shareable: false
+    concurrency: parallel
+    call_timeout_seconds: 30

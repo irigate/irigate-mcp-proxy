@@ -93,8 +93,10 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 
 ## Child DOX Index
 
-- `profiles/AGENTS.md` — Pre-implementation workload and smoke-test profile inputs.
+- `profiles/AGENTS.md` — Validated static runtime and benchmark profiles.
 - `spikes/AGENTS.md` — Disposable Phase 0 transport, sharing, failure, and client-compatibility evidence.
+- `src/AGENTS.md` — Production package source and module contracts.
+- `tests/AGENTS.md` — Executable behavioral and process-lifecycle contracts.
 
 Root-owned artifacts:
 

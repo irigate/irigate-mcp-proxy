@@ -9,7 +9,7 @@ status: planning
 
 Irigate is a proposed loopback-only MCP broker. It aims to let local agent sessions share explicitly approved stdio MCP servers, reducing duplicate processes and repeated cold starts while providing metadata-only tool-call telemetry.
 
-The production broker is not implemented. Phase 0's bounded technical validation passed for the official Python SDK, Hermes, Kilo/OpenCode, Context7's qualified read-only surface, failure containment, and loopback Origin enforcement.
+The broker runtime is not implemented. Phase 0's bounded technical validation passed, and Phase 1 provides the installable package plus fail-closed static profile validation.
 
 ## Problem hypothesis
 
@@ -95,12 +95,14 @@ Irigate is positioned as local AI developer infrastructure, not as a competitor 
 
 - `IMPLEMENTATION-PLAN.md` — Phased build plan, experimental gates, intended package layout, and verification.
 - `MARKET-RESEARCH.md` — Honest market hypothesis, target user, Microsoft comparison, rejected positioning, and go/no-go criteria.
-- `profiles/` — Pre-implementation workload examples. They are inputs to the transport and benchmark spikes, not production-ready configuration.
+- `profiles/` — Validated loopback-only runtime and benchmark profiles.
+- `src/irigate/` — Installable package, configuration models, loader, and CLI.
+- `tests/` — Executable package and runtime contracts.
 
 ## Status
 
 - Product scope: narrowed to a local MCP broker.
 - Validation: Phase 0 completed; Context7 is the first qualified shared-upstream candidate, while code-review-graph remains isolated.
-- Implementation: production package not started.
+- Implementation: Phase 1 package and configuration contract completed; broker transport not started.
 - Market evidence: hypothesis only.
-- Next action: execute Phase 1 of `IMPLEMENTATION-PLAN.md`.
+- Next action: execute Phase 2 of `IMPLEMENTATION-PLAN.md`.

@@ -2,28 +2,29 @@
 
 ## Purpose
 
-Pre-implementation workload and smoke-test profiles used by the transport, isolation, and benchmark spikes.
+Validated static broker profiles used by the package, runtime qualification, and benchmark gates.
 
 ## Ownership
 
-- `hermes-vc-gateway.yaml` inventories representative heavy stdio upstreams for benchmark selection.
-- `smoke-test.yaml` defines the credential-free echo fixture shape.
-- Phase 1 of `IMPLEMENTATION-PLAN.md` replaces these design inputs with the validated runtime schema.
+- `mvp.yaml` is the primary local profile: qualified shared Context7 plus isolated code-review-graph.
+- `benchmark-heavy.yaml` adds a third isolated upstream for resource and latency measurement.
 
 ## Local Contracts
 
-- Profile files contain configuration shape, descriptions, and environment-variable names; they do not contain credentials.
-- Profile examples must remain aligned with `IMPLEMENTATION-PLAN.md`.
-- Examples are safe to commit and contain no runtime credential values.
+- Profile files conform to `irigate.models.BrokerConfig` and contain no credential values.
+- Environment entries, when needed, use `${ENV_NAME}` references resolved only from the broker process.
+- `shareable: true` entries name a registered upstream-specific qualifier.
+- Profiles bind to loopback and configure stdio upstreams only.
 
 ## Work Guidance
 
-- Treat current profiles as experiment inputs, not production-ready configuration.
-- Update the implementation plan when a profile change alters an experimental gate or intended contract.
+- Run `irigate --check` after every profile edit.
+- Update the implementation plan when a profile change alters a qualification or benchmark gate.
 
 ## Verification
 
-- Use the spike and benchmark gates in `IMPLEMENTATION-PLAN.md`.
+- `uv run --frozen python -m irigate --config profiles/mvp.yaml --check`
+- `uv run --frozen python -m irigate --config profiles/benchmark-heavy.yaml --check`
 
 ## Child DOX Index
 

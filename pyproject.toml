@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling==1.28.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "irigate"
+version = "0.1.0"
+description = "Loopback-only broker for explicitly approved stdio MCP servers"
+readme = "README.md"
+requires-python = ">=3.11,<3.15"
+dependencies = [
+  "mcp==1.28.1",
+  "pydantic==2.12.5",
+  "PyYAML==6.0.3",
+]
+
+[project.scripts]
+irigate = "irigate.__main__:main"
+
+[dependency-groups]
+dev = [
+  "pytest==9.0.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/irigate"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+testpaths = ["tests"]

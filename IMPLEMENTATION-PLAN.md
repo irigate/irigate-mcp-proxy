@@ -14,7 +14,7 @@ Validate and, only if the evidence supports it, implement a loopback-only MCP br
 ## Execution state
 
 - [x] Phase 0 — transport and sharing spikes
-- [ ] Phase 1 — package and configuration contract
+- [x] Phase 1 — package and configuration contract
 - [ ] Phase 2 — broker core and deterministic routing
 - [ ] Phase 3 — concurrency, isolation, and shutdown
 - [ ] Phase 4 — runtime qualification and goal report
@@ -201,12 +201,12 @@ Create an installable, testable package with fail-closed static configuration.
 
 ### Work
 
-1. [ ] Write failing tests for valid profiles, duplicate keys, invalid commands, missing secret references, unsupported transports, and unknown fields.
-2. [ ] Define typed configuration for host, port, upstream key, command, arguments, environment references, `shareable`, qualifier name, concurrency, call timeout, and optional runtime-report path.
-3. [ ] Require loopback host values and reject remote binds.
-4. [ ] Resolve `${ENV_NAME}` only from the broker process environment and report missing names without printing values.
-5. [ ] Reject `shareable: true` when the profile does not name a registered upstream-specific qualifier.
-6. [ ] Add a console entry point for `irigate` that loads configuration and exits non-zero on validation errors.
+1. [x] Write failing tests for valid profiles, duplicate keys, invalid commands, missing environment references, unsupported transports, and unknown fields.
+2. [x] Define typed configuration for host, port, upstream key, command, arguments, environment references, `shareable`, qualifier name, concurrency, call timeout, and optional runtime-report path.
+3. [x] Require loopback host values and reject remote binds.
+4. [x] Resolve `${ENV_NAME}` only from the broker process environment and report missing names without printing values.
+5. [x] Reject `shareable: true` when the profile does not name a registered upstream-specific qualifier.
+6. [x] Add a console entry point for `irigate` that loads configuration and exits non-zero on validation errors.
 
 ### Verification
 
@@ -216,6 +216,12 @@ python -m irigate --config profiles/mvp.yaml --check
 ```
 
 Expected: tests pass; `--check` reports profile and upstream names without secret values or starting processes.
+
+Gate verdict: `VALIDATED`.
+
+- `tests/test_config.py`: 22 passed.
+- `profiles/mvp.yaml` and `profiles/benchmark-heavy.yaml`: `--check` passed and reported metadata only.
+- `uv build`: source distribution and wheel built successfully.
 
 ## Phase 2 — broker core and deterministic routing
 

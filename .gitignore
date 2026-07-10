@@ -1,4 +1,10 @@
 # Local spikes and tool caches
+.venv/
+.pytest_cache/
+**/__pycache__/
+.irigate/
+dist/
+*.egg-info/
 spikes/**/.venv/
 spikes/**/uv.lock
 .code-review-graph/
