@@ -16,7 +16,7 @@ The plausible opportunity is narrow:
 - A local broker may reduce duplicate processes and repeated cold starts when the upstream is safe to share.
 - A single local endpoint can also provide metadata-only visibility into tool usage across agent products.
 
-This is a product hypothesis, not a proven market claim. Implementation should proceed only through the experimental gates in [`IMPLEMENTATION-PLAN.md`](IMPLEMENTATION-PLAN.md).
+This is a product hypothesis, not a proven market claim. Current implementation and extension constraints are documented in [`IMPLEMENTATION.md`](IMPLEMENTATION.md).
 
 ## Category
 
@@ -41,7 +41,7 @@ The problem is material only when all of the following are true:
 4. Sessions use compatible credentials, workspaces, and server state.
 5. The broker adds less latency and operational complexity than it removes.
 
-The previous “N agents × M upstreams becomes M processes” claim was too broad. Distinct credentials, workspaces, or state-isolation requirements can still require separate upstream instances. The implementation must measure realistic workloads rather than extrapolate from identical echo clients.
+Distinct credentials, workspaces, or state-isolation requirements can require separate upstream instances. Resource claims must come from realistic workloads rather than extrapolation from identical echo clients.
 
 ## Target user
 
@@ -150,7 +150,7 @@ Rejected for the MVP because the design lacks:
 
 ### “Bidirectional secret protection”
 
-Rejected because generic regex scanning cannot reliably distinguish legitimate tool credentials from exfiltration. Request-side blocking was disabled by default in the prior design, and response rewriting can corrupt valid source code or structured output.
+Rejected because generic regex scanning cannot reliably distinguish legitimate tool credentials from exfiltration, while response rewriting can corrupt valid source code or structured output.
 
 The safer MVP rule is to avoid collecting arguments and results and to prohibit credentials in URLs, logs, and committed profiles.
 
@@ -177,7 +177,7 @@ Do not build these before evidence from real users. A local broker aimed only at
 
 ## Validation evidence required
 
-The Phase 6 harness collected production broker evidence for the qualified Context7 upstream. The measurements support a narrow resource-consolidation claim for identical credential-free, workspace-free contexts; they do not support call-latency or distinct-context savings claims.
+The benchmark harness collected production broker evidence for the qualified Context7 upstream. The measurements support a narrow resource-consolidation claim for identical credential-free, workspace-free contexts; they do not support call-latency or distinct-context savings claims.
 
 Three repetitions produced these medians and ranges:
 
@@ -192,7 +192,7 @@ Three repetitions produced these medians and ranges:
 
 At five clients the broker reduced Context7 instances by 80% and resident memory by 79.0%; at 20 clients it reduced instances by 95% and resident memory by 94.7%. One client had no process saving and used 4.4% more resident memory. Every completed trial returned its Context7 process count to baseline, and every broker report reconciled with external process roots.
 
-The final benchmark's Context7 calls were all upstream-throttled. Their recorded first-call and steady-state timings are not valid performance evidence. A prior unthrottled 20-client diagnostic produced repeated 30-second timeouts and triggered configured degradation, so no acceptable high-concurrency latency claim is made.
+The benchmark's Context7 calls were all upstream-throttled. Their recorded first-call and steady-state timings are not valid performance evidence. An unthrottled 20-client diagnostic produced repeated 30-second timeouts and triggered configured degradation, so no acceptable high-concurrency latency claim is made.
 
 Compatibility results:
 
@@ -209,10 +209,10 @@ Context classification remains explicit:
 |---|---|---|
 | Context7 with identical credentials/workspace | Qualified shared | Fixed-identity read-only qualifier plus measured process/RSS consolidation |
 | Context7 with distinct credentials/workspaces | Not applicable | The upstream has neither client credentials nor workspace state; no claim is made |
-| code-review-graph | Isolated | Phase 0 state evidence requires per-context isolation |
+| code-review-graph | Isolated | State evidence requires per-context isolation |
 | shadcn | Isolated | No reviewed qualifier exists |
 
-The maintained-product gate is `PARTIAL`, not green. Resource consolidation is material for one real qualified upstream, but repeated valid call-latency evidence is missing. Phase 7 remains blocked until the benchmark can be rerun with adequate Context7 quota.
+Resource consolidation is material for one real qualified upstream, but repeated valid call-latency evidence is missing. A release decision remains blocked until the benchmark can be rerun with adequate Context7 quota.
 
 Remaining evidence gaps before broader differentiation or market-size claims:
 
@@ -254,11 +254,11 @@ Benchmark results must separate identical contexts from isolated contexts. Publi
 
 Irigate demonstrates material process and memory consolidation for one qualified, identical-context upstream and direct compatibility with three installed agent clients. It is not yet justified as a maintained product or as enterprise governance infrastructure because valid repeated call-latency evidence and normal-session operating evidence remain open.
 
-The next investment is a quota-backed Phase 6 latency rerun and normal-session observation, not additional features or broader market claims.
+The next investment is a quota-backed latency rerun and normal-session observation, not additional features or broader market claims.
 
 ## References
 
-- [Irigate implementation plan](IMPLEMENTATION-PLAN.md)
+- [Irigate implementation contracts](IMPLEMENTATION.md)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
 - [Microsoft MCP Gateway](https://github.com/microsoft/mcp-gateway)
 - [Obot](https://obot.ai/)

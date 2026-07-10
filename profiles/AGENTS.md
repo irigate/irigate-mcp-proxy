@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Validated static broker profiles used by the package, runtime qualification, and benchmark gates.
+Validated static broker profiles used by the package, runtime qualification, and benchmark harnesses.
 
 ## Ownership
 
@@ -19,7 +19,7 @@ Validated static broker profiles used by the package, runtime qualification, and
 ## Work Guidance
 
 - Run `irigate --check` after every profile edit.
-- Update the implementation plan when a profile change alters a qualification or benchmark gate.
+- Update `IMPLEMENTATION.md` when a profile change alters qualification, sharing, or benchmark contracts.
 
 ## Verification
 

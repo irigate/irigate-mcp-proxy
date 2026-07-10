@@ -19,7 +19,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 ## Local Contracts
 
 - Bind addresses are loopback-only.
-- Upstream transport is stdio-only until the implementation plan explicitly adds another transport.
+- Upstream transport is stdio-only; changing the transport requires an explicit design decision and updates to `IMPLEMENTATION.md`.
 - Profile environment values are `${ENV_NAME}` references only; values come from the broker process and never appear in validation output.
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields and duplicate YAML keys are errors.

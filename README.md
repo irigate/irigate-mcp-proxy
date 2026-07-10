@@ -1,15 +1,8 @@
----
-title: Irigate — local MCP broker for AI coding agents
-status: planning
----
-
 # Irigate
 
 > Shared local MCP infrastructure for developers running multiple AI coding agents.
 
-Irigate is a proposed loopback-only MCP broker. It aims to let local agent sessions share explicitly approved stdio MCP servers, reducing duplicate processes and repeated cold starts while providing metadata-only tool-call telemetry.
-
-Phase 5 adds one metadata-only JSON audit record for every completed or rejected tool call without collecting arguments, results, or environment values.
+Irigate is a loopback-only MCP broker. It lets local agent sessions share explicitly qualified stdio MCP servers, reducing duplicate processes while providing metadata-only runtime reports and one audit record for every completed or rejected tool call.
 
 ## Problem hypothesis
 
@@ -24,11 +17,11 @@ A broker may improve this when:
 
 Sharing is not universally safe. Some MCP servers retain client-specific state, and distinct workspaces or credentials may still require separate instances. Irigate must prove the benefit per upstream rather than assuming every N×M process set can collapse to M.
 
-## Proposed MVP
+## Current capabilities
 
 - Streamable HTTP endpoint bound to `127.0.0.1`.
 - Static YAML configuration loaded at startup.
-- Two or three stdio upstreams in the validation profile.
+- Static profiles for qualified shared and isolated stdio upstreams.
 - Explicit `shareable: true` opt-in per upstream; isolated by default.
 - Deterministic `<upstream-key>__<tool-name>` routing.
 - Configurable serial or parallel call handling per upstream.
@@ -72,18 +65,9 @@ Hermes / Claude Code / Codex / test clients
 
 Different upstreams must progress independently. Shared instances are permitted only after transport, concurrency, and state-isolation tests pass.
 
-## Implementation gates
+## Implementation
 
-Implementation follows [`IMPLEMENTATION-PLAN.md`](IMPLEMENTATION-PLAN.md):
-
-1. Prove Streamable HTTP round trips and multi-client correctness.
-2. Prove at least one relevant, expensive stdio upstream is safe to share.
-3. Build the minimal package and deterministic router.
-4. Validate concurrency, shutdown, and metadata-only telemetry.
-5. Benchmark realistic identical and isolated contexts.
-6. Decide whether to stop, keep it as an internal utility, or release it as an open-source local broker.
-
-If no expensive upstream is safe to share, the project stops. It does not compensate by adding unrelated security or platform features.
+[`IMPLEMENTATION.md`](IMPLEMENTATION.md) documents runtime architecture, module ownership, safety contracts, extension workflows, and verification commands.
 
 ## Positioning
 
@@ -93,16 +77,16 @@ Irigate is positioned as local AI developer infrastructure, not as a competitor 
 
 ## Repository contents
 
-- `IMPLEMENTATION-PLAN.md` — Phased build plan, experimental gates, intended package layout, and verification.
-- `MARKET-RESEARCH.md` — Honest market hypothesis, target user, Microsoft comparison, rejected positioning, and go/no-go criteria.
+- `IMPLEMENTATION.md` — Current architecture, contracts, extension workflows, and verification.
+- `MARKET-RESEARCH.md` — Market hypothesis, measured evidence, positioning, and go/no-go criteria.
 - `profiles/` — Validated loopback-only runtime and benchmark profiles.
 - `src/irigate/` — Installable package, configuration models, loader, and CLI.
 - `tests/` — Executable package and runtime contracts.
 
 ## Status
 
-- Product scope: narrowed to a local MCP broker.
-- Validation: Phase 0 completed; Context7 is the first qualified shared-upstream candidate, while code-review-graph remains isolated.
-- Implementation: Phase 6 compatibility and resource evidence completed with a partial gate; call-latency evidence remains invalid because Context7 throttled the final benchmark.
+- Product scope: loopback-only local MCP broker.
+- Validation: Context7 is qualified for shared mode; code-review-graph remains isolated.
+- Evidence: process and resident-memory consolidation is established for identical Context7 contexts. Call-latency evidence remains invalid because Context7 throttled the benchmark.
 - Market evidence: hypothesis only.
-- Next action: rerun the Phase 6 benchmark with adequate Context7 quota; Phase 7 remains blocked.
+- Next action: rerun the latency benchmark with adequate Context7 quota and observe normal development sessions before making a release decision.

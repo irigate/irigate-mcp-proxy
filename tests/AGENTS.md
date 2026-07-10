@@ -6,7 +6,7 @@ Executable contracts for Irigate configuration, transport, routing, isolation, s
 
 ## Ownership
 
-- Phase-specific `test_*.py` files own behavioral contracts from `IMPLEMENTATION-PLAN.md`.
+- `test_*.py` files own the behavioral contracts documented in `IMPLEMENTATION.md`.
 - `fixtures/` owns credential-free echo, state, and Context7-shaped MCP servers used only by tests.
 - `helpers.py` owns loopback test-server startup and typed test-profile construction.
 

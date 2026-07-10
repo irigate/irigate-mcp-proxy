@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Repeatable Phase 6 compatibility and resource-evidence harnesses for the production Irigate broker.
+Repeatable compatibility and resource-evidence harnesses for the production Irigate broker.
 
 ## Ownership
 
@@ -14,7 +14,7 @@ Repeatable Phase 6 compatibility and resource-evidence harnesses for the product
 - Harnesses never read or copy authentication file contents; temporary client homes may symlink existing authentication files.
 - A client is validated only when its marker is present and the runtime report records exactly one additional broker call.
 - Benchmark process counts use baseline-differenced `/proc` command signatures and reconcile logical instance roots with the runtime report.
-- Harness failures, orphan processes, and report discrepancies are hard failures; call errors remain measured evidence for the phase gate.
+- Harness failures, orphan processes, and report discrepancies are hard failures; call errors remain measured evidence.
 - Context7 measurements cover identical credential-free, workspace-free contexts only and must not be extrapolated to isolated upstreams.
 - Generated JSON evidence stays under `.irigate/` and is not committed.
 

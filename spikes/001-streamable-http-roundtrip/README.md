@@ -35,7 +35,7 @@ The SDK's DNS-rebinding middleware rejects malformed or non-loopback `Origin` va
 | `initialize` | Passed for sequential and simultaneous clients |
 | `tools/list` | Exposed exactly `echo__repeat` |
 | `tools/call` | Returned each caller's unique value despite inverted delays |
-| Disconnect/reconnect | A fresh client succeeded after the prior session closed |
+| Disconnect/reconnect | A fresh client succeeded after the first session closed |
 | Timeout | A one-second upstream delay failed under the 0.20-second broker bound |
 | Origin policy | Remote and malformed origins returned 403; loopback and no-Origin requests returned 200 |
 | Shutdown | SIGTERM produced `Application shutdown complete`; no SIGKILL was required |

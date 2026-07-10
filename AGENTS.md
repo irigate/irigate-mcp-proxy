@@ -95,12 +95,12 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 
 - `profiles/AGENTS.md` — Validated static runtime and benchmark profiles.
 - `scripts/AGENTS.md` — Repeatable production compatibility and benchmark evidence harnesses.
-- `spikes/AGENTS.md` — Disposable Phase 0 transport, sharing, failure, and client-compatibility evidence.
+- `spikes/AGENTS.md` — Disposable transport, sharing, failure, and client-compatibility evidence.
 - `src/AGENTS.md` — Production package source and module contracts.
 - `tests/AGENTS.md` — Executable behavioral and process-lifecycle contracts.
 
 Root-owned artifacts:
 
 - `README.md` — Current product boundary, MVP summary, and project status.
-- `IMPLEMENTATION-PLAN.md` — Phased implementation contract, experimental gates, intended package layout, and verification.
+- `IMPLEMENTATION.md` — Current runtime architecture, implementation contracts, extension workflows, and verification.
 - `MARKET-RESEARCH.md` — Market hypothesis, competitive positioning, evidence requirements, and go/no-go criteria.
