@@ -18,7 +18,7 @@ The user approved implementation. Approval authorizes code, tests, profile, and 
 | --- | --- | --- |
 | 1. Profile models and validation | Done | Committed checkpoint |
 | 2. Canonical workspace matching | Done | Committed checkpoint |
-| 3. Namespaced upstream inputs | Todo | Requires Phase 2 commit checkpoint |
+| 3. Namespaced upstream inputs | Done | Committed checkpoint |
 | 4. Streamable HTTP session binding | Todo | Requires Phase 3 commit checkpoint |
 | 5. Per-session arguments and workers | Todo | Requires Phase 4 commit checkpoint |
 | 6. Profile and documentation | Todo | Requires Phase 5 commit checkpoint |
@@ -153,12 +153,14 @@ Steps:
 Files:
 
 - `src/irigate/selection.py`
+- `src/irigate/app.py` (configured-upstream model callback only)
 - `tests/test_selection.py`
 
 Steps:
 
 1. Extend immutable selection objects with validated per-upstream input mappings.
 2. Pass configured upstream models, rather than keys alone, into `parse_selection`.
+   The HTTP adapter callback must return that mapping; session binding remains Phase 4.
 3. Separate selector parameters from `<upstream-key>.<input-name>` parameters.
 4. Add RED tests for the accepted filesystem form and rejection of implicit selection, reverse-only selection, excluded inputs, missing required inputs, duplicates, unknown names, relative paths, and disallowed roots.
 5. Validate and canonicalize workspace values during selection parsing.

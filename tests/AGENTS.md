@@ -27,6 +27,7 @@ Executable contracts for Irigate configuration, background reload, transport, ro
 - Prefer public package APIs and CLI subprocesses over private implementation details.
 - Use explicit test data; never copy values from the operator environment.
 - Pass selectors explicitly when a test exercises narrowed exposure, and cover the bare-URL default-all contract separately.
+- Selection tests cover canonical namespaced workspace inputs for positive upstream and exact-tool selectors plus every implicit, reverse-only, excluded, duplicate, unknown, empty, missing-required, relative, and unauthorized form.
 
 ## Verification
 

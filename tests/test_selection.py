@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 
 import pytest
 
+from irigate.models import UpstreamConfig, WorkspaceInputConfig
 from irigate.selection import (
     SelectionError,
     ToolSelection,
@@ -11,7 +13,10 @@ from irigate.selection import (
     parse_selection,
 )
 
-UPSTREAMS = ("context7", "code-review-graph", "documentdb", "shadcn")
+UPSTREAMS = {
+    key: UpstreamConfig(command="test", idle_timeout_seconds=60)
+    for key in ("context7", "code-review-graph", "documentdb", "shadcn")
+}
 
 
 def parse(*items: tuple[str, str]):
@@ -134,3 +139,116 @@ def test_rejects_invalid_selection(
 ) -> None:
     with pytest.raises(SelectionError, match=message):
         parse(*items)
+
+
+def workspace_upstreams(root: Path) -> dict[str, UpstreamConfig]:
+    return {
+        **UPSTREAMS,
+        "filesystem": UpstreamConfig(
+            command="test",
+            args=("{workspace}",),
+            idle_timeout_seconds=60,
+            inputs={
+                "workspace": WorkspaceInputConfig(
+                    type="directory",
+                    required=True,
+                    allowed_roots=(str(root),),
+                )
+            },
+        ),
+    }
+
+
+@pytest.mark.parametrize(
+    "selector",
+    [
+        ("upstreams", "filesystem"),
+        ("tools", "filesystem__read_file"),
+    ],
+)
+def test_parses_and_canonicalizes_explicit_workspace_input(
+    tmp_path: Path, selector: tuple[str, str]
+) -> None:
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+
+    selection = parse_selection(
+        (selector, ("filesystem.workspace", str(workspace / "."))),
+        workspace_upstreams(tmp_path),
+    )
+
+    assert selection.inputs == (
+        ("filesystem", (("workspace", str(workspace.resolve())),)),
+    )
+
+
+@pytest.mark.parametrize(
+    ("items", "message"),
+    [
+        ((), "required input"),
+        ((("filesystem.workspace", "/tmp"),), "explicitly selected"),
+        (
+            (("upstreams", "!context7"), ("filesystem.workspace", "/tmp")),
+            "explicitly selected",
+        ),
+        (
+            (
+                ("upstreams", "filesystem,context7,!filesystem"),
+                ("filesystem.workspace", "/tmp"),
+            ),
+            "excluded",
+        ),
+        ((("upstreams", "filesystem"),), "required input"),
+        (
+            (
+                ("upstreams", "filesystem"),
+                ("filesystem.workspace", "/tmp"),
+                ("filesystem.workspace", "/tmp"),
+            ),
+            "duplicate input",
+        ),
+        (
+            (("upstreams", "filesystem"), ("filesystem.root", "/tmp")),
+            "unknown input",
+        ),
+        (
+            (("upstreams", "context7"), ("missing.workspace", "/tmp")),
+            "unknown upstream",
+        ),
+        (
+            (("upstreams", "context7"), ("filesystem.workspace", "/tmp")),
+            "explicitly selected",
+        ),
+        (
+            (("upstreams", "filesystem"), ("filesystem.workspace", "relative")),
+            "absolute path",
+        ),
+        (
+            (("upstreams", "filesystem"), ("filesystem.workspace", "")),
+            "must not be empty",
+        ),
+    ],
+)
+def test_rejects_invalid_workspace_inputs(
+    tmp_path: Path,
+    items: Sequence[tuple[str, str]],
+    message: str,
+) -> None:
+    with pytest.raises(SelectionError, match=message):
+        parse_selection(items, workspace_upstreams(tmp_path))
+
+
+def test_rejects_workspace_outside_allowed_roots(tmp_path: Path) -> None:
+    allowed = tmp_path / "allowed"
+    outside = tmp_path / "outside"
+    allowed.mkdir()
+    outside.mkdir()
+
+    with pytest.raises(SelectionError, match="outside allowed_roots"):
+        parse_selection(
+            (
+                ("upstreams", "filesystem"),
+                ("filesystem.workspace", str(outside)),
+            ),
+            workspace_upstreams(allowed),
+        )

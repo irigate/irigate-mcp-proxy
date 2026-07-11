@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from contextvars import ContextVar, Token
 from pathlib import Path
@@ -21,7 +21,7 @@ from starlette.types import Receive, Scope, Send
 from irigate import __version__
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import ConfigurationError, load_config
-from irigate.models import BrokerConfig
+from irigate.models import BrokerConfig, UpstreamConfig
 from irigate.selection import Selection, SelectionError, parse_selection
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ class _StreamableHTTPApp:
     def __init__(
         self,
         manager: StreamableHTTPSessionManager,
-        configured_upstreams: Callable[[], tuple[str, ...]],
+        configured_upstreams: Callable[[], Mapping[str, UpstreamConfig]],
     ) -> None:
         self._manager = manager
         self._configured_upstreams = configured_upstreams
@@ -134,7 +134,7 @@ def create_app(
         stateless=False,
         security_settings=security,
     )
-    endpoint = _StreamableHTTPApp(manager, lambda: tuple(broker.config.upstreams))
+    endpoint = _StreamableHTTPApp(manager, lambda: broker.config.upstreams)
 
     async def watch_config() -> None:
         assert watched_path is not None

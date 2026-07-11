@@ -13,7 +13,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `__main__.py` owns serving, validation, qualification, runtime tool discovery, direct tool-call, and process-report console contracts.
 - `app.py` owns the loopback Streamable HTTP application, agent-label propagation, Origin policy, and background profile watcher.
 - `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, worker selection, and atomic upstream reload.
-- `selection.py` owns typed agent selector parsing, normalization, and fail-closed set computation.
+- `selection.py` owns typed agent selector parsing, namespaced input validation and canonicalization, normalization, and fail-closed set computation.
 - `upstream.py` owns one stdio process/session worker, bounded calls, and exact call activity transitions.
 - `qualification.py` owns generic checks and reviewed upstream-specific sharing admission.
 - `runtime_report.py` owns metadata-only counters and atomic JSON snapshots.
@@ -42,6 +42,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Reload prepares changed active upstreams before routing switches, keeps added and changed dormant upstreams unstarted, preserves the last valid active configuration on failure, and never replaces downstream HTTP sessions.
 - Runtime `host` and `port` changes are rejected; they require replacing the listener.
 - A request without a selector uses all configured upstreams. A selected request uses one `tools` or `upstreams` mode; upstream exclusions override inclusions and unknown names fail closed.
+- Namespaced inputs are accepted only for an upstream explicitly selected by a positive `upstreams=` token or an exact `tools=` selector. Inputs never select an upstream; bare, reverse-only, excluded, duplicate, unknown, empty, missing-required, and unauthorized workspace forms fail closed.
 - Qualification, schema discovery, and process startup occur only when an agent first selects an upstream; concurrent first selection is single-flight per upstream.
 - Exact tool selectors filter `tools/list` and dispatch; process-wide activation by another agent never broadens a request's selection.
 - Direct CLI calls accept one JSON object, emit the complete MCP result as JSON, return nonzero for tool errors, and close their worker before exiting.
