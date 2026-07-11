@@ -12,6 +12,7 @@ from irigate.config import ConfigurationError
 from irigate.models import BrokerConfig
 from irigate.qualification import QualificationResult, qualify_upstream
 from irigate.runtime_report import RuntimeMetrics
+from irigate.selection import Selection, ToolSelection
 from irigate.upstream import UpstreamError, UpstreamTimeout, UpstreamWorker
 
 
@@ -41,6 +42,7 @@ class Broker:
         self._exposed_tools: tuple[types.Tool, ...] = ()
         self._worker_lock = asyncio.Lock()
         self._reload_lock = asyncio.Lock()
+        self._activation_locks: dict[str, asyncio.Lock] = {}
         self._started = False
         self._closing = False
 
@@ -149,47 +151,55 @@ class Broker:
         if self._started:
             return
         self._closing = False
-        exposed: list[types.Tool] = []
-        try:
-            for key, upstream_config in self.config.upstreams.items():
-                qualification: QualificationResult | None = None
-                if upstream_config.shareable:
-                    qualification = await qualify_upstream(
-                        key, upstream_config, self._environment[key]
-                    )
-                    self._qualifications[key] = qualification
-                    self._runtime.qualification(key, qualification)
-                    if not qualification.admitted and self.require_qualified_sharing:
-                        raise BrokerInitializationError(
-                            f"upstream '{key}' failed qualification"
-                        )
-
-                worker: UpstreamWorker | None = None
-                try:
-                    worker, tools = await self._start_worker(key)
-                    namespaced = self.namespace_tools(key, tools)
-                except BaseException as exc:
-                    if worker is not None:
-                        await self._close_worker(key, worker)
-                    raise BrokerInitializationError(
-                        f"upstream '{key}' failed initialization"
-                    ) from exc
-                self._tools_by_upstream[key] = {tool.name: tool for tool in tools}
-                exposed.extend(namespaced)
-                if qualification is not None and qualification.admitted:
-                    self._shared[key] = worker
-                    self._runtime.effective_mode(key, "shared")
-                else:
-                    await self._close_worker(key, worker)
-                    self._runtime.effective_mode(key, "isolated")
-        except BaseException:
-            await self.close()
-            raise
-        self._exposed_tools = tuple(exposed)
         self._started = True
         self._runtime.write()
 
+    async def _activate(self, key: str) -> None:
+        if key in self._tools_by_upstream:
+            return
+        lock = self._activation_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            if key in self._tools_by_upstream:
+                return
+            qualification, worker, tools = await self._prepare_upstream(
+                key, self.config, self._environment
+            )
+            self._tools_by_upstream[key] = {tool.name: tool for tool in tools}
+            if qualification is None:
+                self._runtime.effective_mode(key, "isolated")
+            else:
+                self._qualifications[key] = qualification
+                self._runtime.qualification(key, qualification)
+                if worker is not None:
+                    self._shared[key] = worker
+                    self._runtime.effective_mode(key, "shared")
+                else:
+                    self._runtime.effective_mode(key, "isolated")
+            self._runtime.write()
+
+    async def list_tools(self, selection: Selection) -> list[types.Tool]:
+        for key in self.config.upstreams:
+            if key in selection.upstreams:
+                await self._activate(key)
+        exposed = [
+            tool
+            for key in self.config.upstreams
+            if key in selection.upstreams
+            for tool in self.namespace_tools(
+                key, tuple(self._tools_by_upstream[key].values())
+            )
+        ]
+        if isinstance(selection, ToolSelection):
+            missing = sorted(selection.tools - {tool.name for tool in exposed})
+            if missing:
+                raise BrokerInitializationError(
+                    "selected tools are unavailable: " + ", ".join(missing)
+                )
+            exposed = [tool for tool in exposed if tool.name in selection.tools]
+        return exposed
+
     async def worker_for(self, upstream_key: str, session_key: Hashable) -> UpstreamWorker:
+        await self._activate(upstream_key)
         if self._closing:
             raise UpstreamError(f"upstream '{upstream_key}' is unavailable")
         self._runtime.binding(upstream_key, session_key)
@@ -336,6 +346,7 @@ class Broker:
         name: str,
         arguments: dict[str, Any],
         session_key: Hashable,
+        selection: Selection | None = None,
     ) -> types.CallToolResult:
         audit_started = time.monotonic()
         upstream_key, separator, tool_name = name.partition("__")
@@ -347,6 +358,18 @@ class Broker:
                 duration_seconds=time.monotonic() - audit_started,
             )
             return self._error("unknown upstream prefix")
+        if selection is not None and (
+            upstream_key not in selection.upstreams
+            or (isinstance(selection, ToolSelection) and name not in selection.tools)
+        ):
+            self._audit.emit(
+                upstream=upstream_key,
+                tool=tool_name,
+                outcome="invalid_tool",
+                duration_seconds=time.monotonic() - audit_started,
+            )
+            return self._error("tool is not included in this agent selection")
+        await self._activate(upstream_key)
         tools = self._tools_by_upstream[upstream_key]
         if tool_name not in tools:
             self._audit.emit(

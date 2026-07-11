@@ -11,6 +11,7 @@ import pytest
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.models import BrokerConfig, UpstreamConfig
 from irigate.qualification import GENERIC_CHECKS, qualify_config, qualify_upstream
+from irigate.selection import parse_selection
 from tests.helpers import config_for, upstream
 
 pytestmark = pytest.mark.asyncio
@@ -63,14 +64,16 @@ async def test_default_startup_downgrades_failed_sharing() -> None:
         await broker.close()
 
 
-async def test_strict_startup_rejects_failed_sharing() -> None:
+async def test_strict_first_use_rejects_failed_sharing() -> None:
     definition = context7()
     definition["args"] = [str(Path(__file__).parent / "fixtures" / "echo_server.py")]
     broker = Broker(
         config_for(8765, {"context7": definition}), require_qualified_sharing=True
     )
+    await broker.start()
+    selection = parse_selection((("upstreams", "context7"),), broker.config.upstreams)
     with pytest.raises(BrokerInitializationError, match="failed qualification"):
-        await broker.start()
+        await broker.list_tools(selection)
     await broker.close()
 
 

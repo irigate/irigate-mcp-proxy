@@ -89,14 +89,12 @@ def create_app(
 
     @server.list_tools()
     async def list_tools():
-        current_selection()
-        return broker.tools
+        return await broker.list_tools(current_selection())
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]):
-        current_selection()
         session_key = id(server.request_context.session)
-        return await broker.call_tool(name, arguments, session_key)
+        return await broker.call_tool(name, arguments, session_key, current_selection())
 
     origins = [f"http://127.0.0.1:{config.port}", f"http://localhost:{config.port}"]
     if config.host == "::1":

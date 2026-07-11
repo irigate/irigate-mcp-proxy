@@ -10,7 +10,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
 - `__main__.py` owns the `irigate` console contract.
 - `app.py` owns the loopback Streamable HTTP application, Origin policy, and background profile watcher.
-- `broker.py` owns tool aggregation, exact namespaced routing, worker selection, and atomic upstream reload.
+- `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, worker selection, and atomic upstream reload.
 - `selection.py` owns typed agent selector parsing, normalization, and fail-closed set computation.
 - `upstream.py` owns one stdio process/session worker and bounded calls.
 - `qualification.py` owns generic checks and reviewed upstream-specific sharing admission.
@@ -37,6 +37,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Reload prepares added and changed upstreams before routing switches, keeps the last valid configuration on failure, and never replaces downstream HTTP sessions.
 - Runtime `host` and `port` changes are rejected; they require replacing the listener.
 - Agent selectors use exactly one explicit `tools` or `upstreams` mode; upstream exclusions override inclusions and unknown names fail closed.
+- Qualification, schema discovery, and process startup occur only when an agent first selects an upstream; concurrent first selection is single-flight per upstream.
+- Exact tool selectors filter `tools/list` and dispatch; process-wide activation by another agent never broadens a request's selection.
 
 ## Work Guidance
 

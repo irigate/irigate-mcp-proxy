@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.models import BrokerConfig
+from irigate.selection import parse_selection
 from tests.helpers import config_for, running_broker, upstream
 
 pytestmark = pytest.mark.asyncio
@@ -32,11 +34,86 @@ async def test_upstream_initialization_failure_is_safe() -> None:
     )
     broker = Broker(config)
 
+    await broker.start()
+    selection = parse_selection((("upstreams", "broken"),), config.upstreams)
     with pytest.raises(BrokerInitializationError, match="broken") as exc_info:
-        await broker.start()
+        await broker.list_tools(selection)
 
     assert "irigate-command-that-does-not-exist" not in str(exc_info.value)
     await broker.close()
+
+
+async def test_selection_activates_only_required_upstream_and_filters_tools() -> None:
+    config = config_for(8765, {"echo": upstream(), "other": upstream()})
+    broker = Broker(config)
+    await broker.start()
+    try:
+        selection = parse_selection((("tools", "echo__repeat"),), config.upstreams)
+        tools = await broker.list_tools(selection)
+
+        assert [tool.name for tool in tools] == ["echo__repeat"]
+        snapshot = broker.runtime_snapshot()["upstreams"]
+        assert snapshot["echo"]["spawns"] >= 1
+        assert snapshot["other"]["spawns"] == 0
+        assert snapshot["other"]["qualification"] == "not_requested"
+    finally:
+        await broker.close()
+
+
+async def test_selection_blocks_tool_activated_for_another_agent() -> None:
+    config = config_for(8765, {"echo": upstream(), "other": upstream()})
+    broker = Broker(config)
+    await broker.start()
+    try:
+        echo = parse_selection((("upstreams", "echo"),), config.upstreams)
+        other = parse_selection((("upstreams", "other"),), config.upstreams)
+        await broker.list_tools(echo)
+        result = await broker.call_tool(
+            "echo__repeat", {"value": "blocked"}, "client", other
+        )
+
+        assert result.isError is True
+        assert "not included" in result.content[0].text
+    finally:
+        await broker.close()
+
+
+async def test_concurrent_first_selection_activates_upstream_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = config_for(8765, {"echo": upstream()})
+    broker = Broker(config)
+    await broker.start()
+    selection = parse_selection((("upstreams", "echo"),), config.upstreams)
+    original = broker._prepare_upstream
+    activations = 0
+
+    async def counted_activation(*args, **kwargs):
+        nonlocal activations
+        activations += 1
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(broker, "_prepare_upstream", counted_activation)
+    try:
+        await asyncio.gather(broker.list_tools(selection), broker.list_tools(selection))
+        assert activations == 1
+    finally:
+        await broker.close()
+
+
+async def test_unknown_exact_tool_activates_only_its_upstream() -> None:
+    config = config_for(8765, {"echo": upstream(), "other": upstream()})
+    broker = Broker(config)
+    await broker.start()
+    selection = parse_selection((("tools", "echo__missing"),), config.upstreams)
+    try:
+        with pytest.raises(BrokerInitializationError, match="echo__missing"):
+            await broker.list_tools(selection)
+        snapshot = broker.runtime_snapshot()["upstreams"]
+        assert snapshot["echo"]["spawns"] >= 1
+        assert snapshot["other"]["spawns"] == 0
+    finally:
+        await broker.close()
 
 
 async def test_call_timeout_returns_error() -> None:
