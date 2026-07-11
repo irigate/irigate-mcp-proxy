@@ -14,6 +14,11 @@ import uvicorn
 from irigate.app import create_app
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import ConfigurationError, load_config
+from irigate.migration import (
+    MigrationError,
+    discover_configurations,
+    migrate_configurations,
+)
 from irigate.models import BrokerConfig
 from irigate.qualification import qualify_config
 from irigate.selection import parse_selection
@@ -67,7 +72,39 @@ def build_parser() -> argparse.ArgumentParser:
     ps = subcommands.add_parser("ps", help="show MCP upstream and agent usage")
     ps.add_argument("--config", default=argparse.SUPPRESS, help="YAML profile path")
     ps.add_argument("--json", action="store_true", help="print the runtime report as JSON")
+    migrate = subcommands.add_parser(
+        "migrate", help="move installed agent stdio MCP servers behind Irigate"
+    )
+    migrate.add_argument("source", nargs="?", help="migrate only this agent configuration")
+    migrate.add_argument("--config", default=argparse.SUPPRESS, help="Irigate profile path")
+    migrate.add_argument(
+        "--all", action="store_true", help="migrate every discovered configuration"
+    )
     return parser
+
+
+def select_migration_paths(source: str | None, migrate_all: bool) -> list[Path]:
+    if source is not None:
+        if migrate_all:
+            raise MigrationError("a configuration file and --all cannot be combined")
+        return [Path(source).expanduser()]
+    candidates = discover_configurations()
+    if not candidates:
+        raise MigrationError("no supported AI-agent MCP configurations found")
+    if migrate_all:
+        return [candidate.path for candidate in candidates]
+    if not sys.stdin.isatty():
+        raise MigrationError("use --all or provide a configuration file")
+    for index, candidate in enumerate(candidates, start=1):
+        print(f"{index}. {candidate.agent}: {candidate.path}")
+    raw = input("Select configurations (comma-separated numbers): ").strip()
+    try:
+        indexes = {int(value.strip()) for value in raw.split(",") if value.strip()}
+    except ValueError as exc:
+        raise MigrationError("selection must contain comma-separated numbers") from exc
+    if not indexes or min(indexes) < 1 or max(indexes) > len(candidates):
+        raise MigrationError("selection is empty or out of range")
+    return [candidate.path for index, candidate in enumerate(candidates, start=1) if index in indexes]
 
 
 async def list_configured_tools(config: BrokerConfig) -> list[str]:
@@ -207,6 +244,18 @@ def format_process_report(report: dict[str, object]) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config_path = resolve_config_path(args.config)
+    if args.command == "migrate":
+        try:
+            paths = select_migration_paths(args.source, args.all)
+            result = migrate_configurations(paths, profile_path=config_path)
+        except MigrationError as exc:
+            print(f"migration error: {exc}", file=sys.stderr)
+            return 2
+        for path in result.paths:
+            print(f"migrated {path}")
+        print(f"profile={result.profile_path}")
+        print(f"upstreams={result.server_count}")
+        return 0
     try:
         config = load_config(config_path)
         if args.command != "ps":

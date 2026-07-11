@@ -8,6 +8,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 
 - `models.py` owns typed static configuration and fail-closed field validation.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
+- `migration.py` owns common agent-config discovery, JSON/YAML/TOML conversion, backup creation, and atomic replacement.
 - `__main__.py` owns serving, validation, qualification, runtime tool discovery, direct tool-call, and process-report console contracts.
 - `app.py` owns the loopback Streamable HTTP application, agent-label propagation, Origin policy, and background profile watcher.
 - `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, worker selection, and atomic upstream reload.
@@ -43,6 +44,9 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Direct CLI calls accept one JSON object, emit the complete MCP result as JSON, return nonzero for tool errors, and close their worker before exiting.
 - Downstream `agent` labels are explicit attribution metadata, not authentication; omitted labels are `anonymous` and Irigate never infers identity.
 - `ps` reads the latest runtime report without resolving environments or starting upstreams and reports busy/idle/stopped state, elapsed idle time, configured idle timeout, and usage in table or JSON form.
+- Migration accepts one explicit source without discovery, otherwise requires interactive selection or `--all`; it migrates stdio entries only, preserves unrelated settings and remote entries, and validates all outputs before writing.
+- Migration never copies agent-config environment values. Every child variable becomes a broker-process `${ENV_NAME}` reference and must already exist in the migration environment.
+- Existing agent and Irigate files receive adjacent `.irigate.bak` backups; existing backups are never overwritten.
 
 ## Work Guidance
 
@@ -51,6 +55,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Error messages may identify fields and environment-variable names, never resolved values. Missing required broker fields include credential-free, actionable profile examples.
 - Runtime tool discovery prints namespaced tool names only and closes every worker before returning.
 - Direct CLI tool arguments must not carry credentials; use profile environment references.
+- Keep format-specific agent details in `migration.py`; do not weaken the validated Irigate profile model to accept foreign config shapes.
 
 ## Verification
 

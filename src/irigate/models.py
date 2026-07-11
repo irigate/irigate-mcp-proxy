@@ -32,6 +32,7 @@ class UpstreamConfig(BaseModel):
     transport: Literal["stdio"] = "stdio"
     command: str
     args: tuple[str, ...] = ()
+    cwd: Path | None = None
     env: dict[str, EnvironmentReference] = Field(default_factory=dict)
     shareable: bool = False
     qualifier: str | None = None

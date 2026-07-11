@@ -84,6 +84,7 @@ class UpstreamWorker:
         params = StdioServerParameters(
             command=self.config.command,
             args=list(self.config.args),
+            cwd=self.config.cwd,
             env=self.environment,
         )
         try:
