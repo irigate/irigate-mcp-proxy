@@ -46,6 +46,24 @@ def write_profile(tmp_path: Path, content: str) -> Path:
     return path
 
 
+def workspace_profile(
+    allowed_roots: list[str],
+    *,
+    args: str = "[-m, echo_server, '{workspace}']",
+    input_name: str = "workspace",
+    input_type: str = "directory",
+    required: str = "true",
+) -> str:
+    roots = "\n".join(f"        - {json.dumps(root)}" for root in allowed_roots)
+    return VALID_PROFILE.replace("args: [-m, echo_server]", f"args: {args}") + (
+        f"    inputs:\n"
+        f"      {input_name}:\n"
+        f"        type: {input_type}\n"
+        f"        required: {required}\n"
+        f"        allowed_roots:\n{roots}\n"
+    )
+
+
 def test_loads_valid_profile_and_resolves_environment_by_name(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -208,6 +226,123 @@ def test_rejects_environment_references_in_arguments(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ConfigurationError, match="arguments must not contain"):
+        load_config(write_profile(tmp_path, profile))
+
+
+def test_loads_workspace_input_and_expands_allowed_roots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", "/home/synthetic-user")
+    monkeypatch.setenv("PROJECT_ROOT", "/srv/synthetic-projects")
+    profile = workspace_profile(
+        ["/home/*/src", "/srv/**/projects", "~/src", "${PROJECT_ROOT}/*"]
+    )
+
+    config = load_config(write_profile(tmp_path, profile))
+
+    workspace = config.upstreams["echo"].inputs["workspace"]
+    assert workspace.type == "directory"
+    assert workspace.required is True
+    assert workspace.allowed_roots == (
+        "/home/*/src",
+        "/srv/**/projects",
+        "/home/synthetic-user/src",
+        "/srv/synthetic-projects/*",
+    )
+
+
+@pytest.mark.parametrize(
+    ("profile", "error"),
+    [
+        (workspace_profile([]), "allowed_roots"),
+        (workspace_profile(["/srv/projects"], input_name="repository"), "workspace"),
+        (workspace_profile(["/srv/projects"], input_type="file"), "directory"),
+        (workspace_profile(["/srv/projects"], required="null"), "required"),
+        (workspace_profile(["/srv/projects"], args="[-m, echo_server]"), "placeholder"),
+        (
+            workspace_profile(
+                ["/srv/projects"],
+                args="[-m, echo_server, '{workspace}', '{workspace}']",
+            ),
+            "exactly one",
+        ),
+        (
+            VALID_PROFILE.replace(
+                "args: [-m, echo_server]", "args: [-m, echo_server, '{workspace}']"
+            ),
+            "without inputs",
+        ),
+    ],
+)
+def test_rejects_invalid_workspace_input_schema(
+    tmp_path: Path, profile: str, error: str
+) -> None:
+    with pytest.raises(ConfigurationError, match=error):
+        load_config(write_profile(tmp_path, profile))
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    [
+        "relative/projects",
+        "~other/projects",
+        "/srv/~/projects",
+        "/srv/proj*",
+        "/srv/***",
+        "/srv/[ab]/projects",
+        "/srv/{one,two}",
+        "/srv/../projects",
+        "$PROJECT_ROOT/projects",
+        "$(pwd)/projects",
+    ],
+)
+def test_rejects_invalid_allowed_root_patterns(tmp_path: Path, pattern: str) -> None:
+    with pytest.raises(ConfigurationError, match="allowed_roots"):
+        load_config(write_profile(tmp_path, workspace_profile([pattern])))
+
+
+def test_rejects_missing_allowed_root_environment_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("MISSING_WORKSPACE_ROOT", raising=False)
+
+    with pytest.raises(ConfigurationError) as exc_info:
+        load_config(
+            write_profile(
+                tmp_path, workspace_profile(["${MISSING_WORKSPACE_ROOT}/projects"])
+            )
+        )
+
+    assert "MISSING_WORKSPACE_ROOT" in str(exc_info.value)
+
+
+def test_rejects_wildcard_from_allowed_root_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("WORKSPACE_ROOT", "/srv/*")
+
+    with pytest.raises(ConfigurationError, match="must not contain wildcards"):
+        load_config(
+            write_profile(tmp_path, workspace_profile(["${WORKSPACE_ROOT}/projects"]))
+        )
+
+
+def test_rejects_dynamic_inputs_on_shareable_upstream(tmp_path: Path) -> None:
+    profile = VALID_PROFILE.replace(
+        "args: [-y, '@upstash/context7-mcp']",
+        "args: [-y, '@upstash/context7-mcp', '{workspace}']",
+    ).replace(
+        "    shareable: true",
+        "    inputs:\n"
+        "      workspace:\n"
+        "        type: directory\n"
+        "        required: true\n"
+        "        allowed_roots: ['/srv/projects']\n"
+        "    shareable: true",
+        1,
+    )
+
+    with pytest.raises(ConfigurationError, match="non-shareable"):
         load_config(write_profile(tmp_path, profile))
 
 

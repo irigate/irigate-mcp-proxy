@@ -23,6 +23,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Bind addresses are loopback-only.
 - Upstream transport is stdio-only; changing the transport requires an explicit design decision and updates to `IMPLEMENTATION.md`.
 - Profile environment values are `${ENV_NAME}` references only; values come from the broker process and never appear in validation output.
+- Dynamic upstream configuration is limited to a required `workspace` directory input on non-shareable upstreams, rendered through exactly one standalone `{workspace}` argument placeholder.
+- Workspace `allowed_roots` are absolute path-segment patterns; only complete `*` and `**` wildcard segments are accepted. Leading `~` and braced environment references expand while loading the profile, and environment-derived roots must be absolute and wildcard-free.
 - Profile path precedence is explicit `--config`, then `IRIGATE_CONFIG`, then `~/.config/irigate/config.yaml`.
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields and duplicate YAML keys are errors.

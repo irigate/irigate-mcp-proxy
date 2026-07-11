@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _ENV_REFERENCE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+_ENV_INTERPOLATION = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _UPSTREAM_KEY = re.compile(r"^[a-z][a-z0-9-]*$")
 _PROFILE_NAME = re.compile(r"^[a-z][a-z0-9-]*$")
 QUALIFIER_UPSTREAM_KEYS = {"context7-readonly-v3": "context7"}
@@ -24,6 +25,23 @@ class EnvironmentReference(BaseModel):
     name: str
 
 
+class WorkspaceInputConfig(BaseModel):
+    """A client-supplied directory constrained by configured path patterns."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    type: Literal["directory"]
+    required: Annotated[bool, Field(strict=True)]
+    allowed_roots: Annotated[tuple[str, ...], Field(min_length=1)]
+
+    @field_validator("allowed_roots", mode="before")
+    @classmethod
+    def expand_and_validate_allowed_roots(cls, value: object) -> object:
+        if not isinstance(value, (list, tuple)):
+            return value
+        return tuple(_expand_allowed_root(pattern) for pattern in value)
+
+
 class UpstreamConfig(BaseModel):
     """Static configuration for one stdio MCP upstream."""
 
@@ -34,6 +52,7 @@ class UpstreamConfig(BaseModel):
     args: tuple[str, ...] = ()
     cwd: Path | None = None
     env: dict[str, EnvironmentReference] = Field(default_factory=dict)
+    inputs: dict[str, WorkspaceInputConfig] = Field(default_factory=dict)
     shareable: bool = False
     qualifier: str | None = None
     concurrency: Literal["serial", "parallel"] = "serial"
@@ -75,14 +94,82 @@ class UpstreamConfig(BaseModel):
             parsed[child_name] = {"name": match.group(1)}
         return parsed
 
+    @field_validator("inputs")
+    @classmethod
+    def validate_inputs(
+        cls, value: dict[str, WorkspaceInputConfig]
+    ) -> dict[str, WorkspaceInputConfig]:
+        if any(name != "workspace" for name in value):
+            raise ValueError("inputs supports only the reserved workspace input")
+        return value
+
     @model_validator(mode="after")
     def validate_shareability(self) -> UpstreamConfig:
+        placeholder_occurrences = sum(arg.count("{workspace}") for arg in self.args)
+        exact_placeholders = self.args.count("{workspace}")
+        if self.inputs:
+            if placeholder_occurrences != 1 or exact_placeholders != 1:
+                raise ValueError(
+                    "workspace input requires exactly one exact {workspace} argument placeholder"
+                )
+            if self.shareable:
+                raise ValueError("dynamic inputs require a non-shareable upstream")
+        elif placeholder_occurrences:
+            raise ValueError("{workspace} placeholder is invalid without inputs")
         if self.shareable and self.qualifier not in REGISTERED_QUALIFIERS:
             names = ", ".join(sorted(REGISTERED_QUALIFIERS))
             raise ValueError(f"shareable upstream requires a registered qualifier: {names}")
         if not self.shareable and self.qualifier is not None:
             raise ValueError("qualifier is only valid when shareable is true")
         return self
+
+
+def _expand_allowed_root(pattern: object) -> str:
+    if not isinstance(pattern, str):
+        raise ValueError("allowed_roots entries must be strings")
+    if pattern == "~":
+        expanded = str(Path.home())
+    elif pattern.startswith("~/"):
+        expanded = str(Path.home()) + pattern[1:]
+    else:
+        expanded = pattern
+    if "~" in expanded:
+        raise ValueError("allowed_roots supports only a leading ~ or ~/")
+
+    def replace_environment(match: re.Match[str]) -> str:
+        name = match.group(1)
+        if name not in os.environ:
+            raise ValueError(f"allowed_roots references missing environment name {name}")
+        replacement = os.environ[name]
+        if not replacement.startswith("/"):
+            raise ValueError(
+                f"allowed_roots environment name {name} must resolve to an absolute path"
+            )
+        if "*" in replacement:
+            raise ValueError(
+                f"allowed_roots environment name {name} must not contain wildcards"
+            )
+        return replacement
+
+    expanded = _ENV_INTERPOLATION.sub(replace_environment, expanded)
+    if "$" in expanded:
+        raise ValueError("allowed_roots environment references must use ${ENV_NAME}")
+    if not expanded.startswith("/"):
+        raise ValueError("allowed_roots entries must be absolute path patterns")
+
+    segments = expanded.split("/")[1:]
+    if any(not segment for segment in segments):
+        raise ValueError("allowed_roots entries must not contain empty path segments")
+    if any(segment in {".", ".."} for segment in segments):
+        raise ValueError("allowed_roots entries must not contain traversal segments")
+    for segment in segments:
+        if segment in {"*", "**"}:
+            continue
+        if any(character in segment for character in "*?[]{}"):
+            raise ValueError(
+                "allowed_roots wildcards must be complete * or ** path segments"
+            )
+    return expanded
 
 
 class BrokerConfig(BaseModel):
