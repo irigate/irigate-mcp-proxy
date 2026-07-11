@@ -21,18 +21,18 @@ The user approved implementation. Approval authorizes code, tests, profile, and 
 | 3. Namespaced upstream inputs | Done | Committed checkpoint |
 | 4. Streamable HTTP session binding | Done | Committed checkpoint |
 | 5. Per-session arguments and workers | Done | Committed checkpoint `c1abe5b` |
-| 6. Profile and documentation | Done | Benchmark profile check and documentation pass completed |
-| 7. Verification and closeout | Todo | Requires Phase 6 commit checkpoint |
+| 6. Profile and documentation | Done | Committed checkpoint `ca01122` |
+| 7. Verification and closeout | Done | VALIDATED closeout |
 
 ## Current context and assumptions
 
 - `upstreams=filesystem` already narrows tool discovery and dispatch to the filesystem upstream.
 - Unknown query parameters currently fail closed in `src/irigate/selection.py`.
-- Upstream command arguments, process `cwd`, and environment are static profile values.
-- Non-shareable workers are currently keyed by `(session_key, upstream_key)` and receive the broker-resolved static environment.
+- Upstream command arguments, process `cwd`, and environment are static profile values except for the reserved worker-local `{workspace}` argument rendering contract.
+- Non-shareable workers are keyed by `(session_key, upstream_key, input_fingerprint)` and receive the broker-resolved static environment plus their canonical workspace binding.
 - The official filesystem MCP server receives allowed paths as command arguments, so `filesystem.workspace` is a declared upstream input mapped to an argument placeholder, not generic environment forwarding.
 - The `agent` query value remains attribution only and must not authorize a workspace.
-- Existing uncommitted changes in `profiles/benchmark-heavy.yaml` and `profiles/AGENTS.md` must be preserved. Do not touch the untracked `settings.json` or `profiles/.benchmark-heavy.yaml.swp` unless separately requested.
+- Unrelated changes in the alternate plan, the `site` submodule, and untracked `settings.json` remain outside this plan and must be preserved.
 
 ## Proposed contract
 
@@ -233,12 +233,16 @@ Run:
 
 Expected gates:
 
-- Existing 129 tests remain green and new tests pass.
+- The 129 focused workspace tests and the 183-test full suite pass.
 - Invalid workspace requests return HTTP 400 without spawning an upstream.
 - No workspace value appears in audit/runtime-report output.
 - A filesystem input never broadens selected upstreams.
 - Symlinked or glob-mismatched workspaces cannot escape configured allowed roots.
 - Traversal such as `/srv/my/project/../../../what-ever` is authorized only against its canonical destination, never against its original prefix.
+
+### Gate
+
+- `VALIDATED` — 129 focused workspace tests and all 183 tests passed; both shipped profiles validated; a real two-session filesystem smoke test confined each tool view to its canonical workspace and observed both isolated processes expire; `git diff --check` and the incremental code graph update passed.
 
 ## Files likely to change
 
