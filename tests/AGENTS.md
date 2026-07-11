@@ -28,6 +28,7 @@ Executable contracts for Irigate configuration, background reload, transport, ro
 - Use explicit test data; never copy values from the operator environment.
 - Pass selectors explicitly when a test exercises narrowed exposure, and cover the bare-URL default-all contract separately.
 - Selection tests cover canonical namespaced workspace inputs for positive upstream and exact-tool selectors plus every implicit, reverse-only, excluded, duplicate, unknown, empty, missing-required, relative, and unauthorized form.
+- Transport tests prove valid workspace selectors expose only the selected upstream, invalid paths return JSON HTTP 400, and an established MCP session rejects a different canonical input mapping.
 
 ## Verification
 

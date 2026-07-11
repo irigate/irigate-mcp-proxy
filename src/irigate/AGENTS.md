@@ -43,6 +43,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Runtime `host` and `port` changes are rejected; they require replacing the listener.
 - A request without a selector uses all configured upstreams. A selected request uses one `tools` or `upstreams` mode; upstream exclusions override inclusions and unknown names fail closed.
 - Namespaced inputs are accepted only for an upstream explicitly selected by a positive `upstreams=` token or an exact `tools=` selector. Inputs never select an upstream; bare, reverse-only, excluded, duplicate, unknown, empty, missing-required, and unauthorized workspace forms fail closed.
+- The first successful Streamable HTTP response binds the selection's immutable input mapping to the MCP session ID. Every later request for that session must present the same canonical mapping; rebinding fails before broker dispatch.
 - Qualification, schema discovery, and process startup occur only when an agent first selects an upstream; concurrent first selection is single-flight per upstream.
 - Exact tool selectors filter `tools/list` and dispatch; process-wide activation by another agent never broadens a request's selection.
 - Direct CLI calls accept one JSON object, emit the complete MCP result as JSON, return nonzero for tool errors, and close their worker before exiting.

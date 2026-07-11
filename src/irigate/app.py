@@ -10,19 +10,20 @@ from pathlib import Path
 from typing import Any, Callable
 
 from mcp.server.lowlevel import Server
+from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
-from starlette.datastructures import QueryParams
+from starlette.datastructures import Headers, QueryParams
 from starlette.responses import JSONResponse
 from starlette.routing import Route
-from starlette.types import Receive, Scope, Send
+from starlette.types import Message, Receive, Scope, Send
 
 from irigate import __version__
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import ConfigurationError, load_config
 from irigate.models import BrokerConfig, UpstreamConfig
-from irigate.selection import Selection, SelectionError, parse_selection
+from irigate.selection import InputBindings, Selection, SelectionError, parse_selection
 
 logger = logging.getLogger(__name__)
 _request_selection: ContextVar[Selection | None] = ContextVar(
@@ -51,6 +52,7 @@ class _StreamableHTTPApp:
     ) -> None:
         self._manager = manager
         self._configured_upstreams = configured_upstreams
+        self._session_inputs: dict[str, InputBindings] = {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         try:
@@ -63,6 +65,12 @@ class _StreamableHTTPApp:
                 raise SelectionError("invalid agent name")
             selector_items = [item for item in query.multi_items() if item[0] != "agent"]
             selection = parse_selection(selector_items, self._configured_upstreams())
+            session_id = Headers(scope=scope).get(MCP_SESSION_ID_HEADER)
+            if (
+                session_id in self._session_inputs
+                and self._session_inputs[session_id] != selection.inputs
+            ):
+                raise SelectionError("session inputs cannot be changed")
         except (SelectionError, UnicodeDecodeError) as exc:
             message = str(exc) if isinstance(exc, SelectionError) else "invalid query string"
             response = JSONResponse({"error": message}, status_code=400)
@@ -71,8 +79,18 @@ class _StreamableHTTPApp:
 
         token: Token[Selection | None] = _request_selection.set(selection)
         agent_token = _request_agent.set(agent)
+
+        async def bind_session_inputs(message: Message) -> None:
+            if message["type"] == "http.response.start" and message["status"] < 400:
+                response_session_id = Headers(raw=message.get("headers", [])).get(
+                    MCP_SESSION_ID_HEADER
+                )
+                if response_session_id is not None:
+                    self._session_inputs.setdefault(response_session_id, selection.inputs)
+            await send(message)
+
         try:
-            await self._manager.handle_request(scope, receive, send)
+            await self._manager.handle_request(scope, receive, bind_session_inputs)
         finally:
             _request_agent.reset(agent_token)
             _request_selection.reset(token)

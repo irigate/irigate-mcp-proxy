@@ -87,7 +87,7 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 - **Local HTTP origin enforcement.** Streamable HTTP requests must reject malformed and non-loopback `Origin` headers to prevent DNS rebinding. The no-Origin behavior for non-browser local clients must be explicit and proven by the transport spike.
 - **No request-delivered credentials.** Credentials must never be accepted through URLs, query parameters, command arguments, logs, or committed profiles. Runtime configuration may reference broker-process environment variables without exposing their values.
 - **Optional agent selection.** A bare downstream MCP URL exposes all configured upstreams. Explicit tool or upstream selectors narrow that set; reverse-only selection intentionally follows future profile additions and is not least privilege.
-- **Workspace inputs are staged and fail closed.** Filesystem workspaces are reserved for required directory inputs on isolated upstreams. Configuration, canonical allowed-root authorization, and namespaced HTTP parsing are implemented; downstream-session binding and worker argument rendering remain unfinished and must not be documented as usable client-facing behavior.
+- **Workspace inputs are staged and fail closed.** Filesystem workspaces are reserved for required directory inputs on isolated upstreams. Configuration, canonical allowed-root authorization, namespaced HTTP parsing, and immutable downstream-session binding are implemented; worker argument rendering remains unfinished and the feature must not be documented as usable client-facing behavior.
 
 ## Codebase exploration — mandatory graph-first workflow
 

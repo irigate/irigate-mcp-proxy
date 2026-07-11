@@ -19,7 +19,7 @@ The user approved implementation. Approval authorizes code, tests, profile, and 
 | 1. Profile models and validation | Done | Committed checkpoint |
 | 2. Canonical workspace matching | Done | Committed checkpoint |
 | 3. Namespaced upstream inputs | Done | Committed checkpoint |
-| 4. Streamable HTTP session binding | Todo | Requires Phase 3 commit checkpoint |
+| 4. Streamable HTTP session binding | Done | Committed checkpoint |
 | 5. Per-session arguments and workers | Todo | Requires Phase 4 commit checkpoint |
 | 6. Profile and documentation | Todo | Requires Phase 5 commit checkpoint |
 | 7. Verification and closeout | Todo | Requires Phase 6 commit checkpoint |
@@ -176,6 +176,7 @@ Files:
 Steps:
 
 1. Preserve the validated input mapping in the existing request/session selection context.
+   The MCP SDK creates the session ID inside its manager, so the HTTP adapter captures the successful response header and records the immutable binding before the client can issue its next request.
 2. Add HTTP-level RED tests proving `upstreams=filesystem` exposes filesystem tools only and invalid workspace parameters return JSON HTTP 400 before upstream activation.
 3. Add a test proving a later request cannot alter inputs for an established MCP session; fail closed rather than silently rebinding.
 4. Keep `agent` validation and Origin enforcement unchanged.
