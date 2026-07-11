@@ -94,6 +94,55 @@ async def test_isolated_worker_restarts_after_its_idle_timeout() -> None:
         await broker.close()
 
 
+async def test_workspace_worker_restarts_with_its_input_key_after_idle_timeout(
+    tmp_path: Path,
+) -> None:
+    from irigate.selection import parse_selection
+
+    workspace_server = Path(__file__).parent / "fixtures" / "workspace_server.py"
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    definition = upstream(
+        args=[str(workspace_server), "{workspace}"], idle_timeout=0.05
+    )
+    definition["inputs"] = {
+        "workspace": {
+            "type": "directory",
+            "required": True,
+            "allowed_roots": [str(tmp_path)],
+        }
+    }
+    config = config_for(8765, {"filesystem": definition})
+    selection = parse_selection(
+        [("upstreams", "filesystem"), ("filesystem.workspace", str(workspace))],
+        config.upstreams,
+    )
+    broker = Broker(config)
+    await broker.start()
+    try:
+        first_result = await broker.call_tool(
+            "filesystem__workspace", {}, "session", selection
+        )
+        first_worker = await broker.worker_for(
+            "filesystem", "session", selection.inputs
+        )
+        await wait_for_idle_shutdown(first_worker)
+        assert broker.runtime_snapshot()["upstreams"]["filesystem"]["live_instances"] == 0
+
+        second_result = await broker.call_tool(
+            "filesystem__workspace", {}, "session", selection
+        )
+        second_worker = await broker.worker_for(
+            "filesystem", "session", selection.inputs
+        )
+
+        assert first_result.structuredContent == {"workspace": str(workspace)}
+        assert second_result.structuredContent == {"workspace": str(workspace)}
+        assert second_worker is not first_worker
+    finally:
+        await broker.close()
+
+
 async def test_shared_worker_restarts_after_its_idle_timeout() -> None:
     definition = context7()
     definition["idle_timeout_seconds"] = 0.05

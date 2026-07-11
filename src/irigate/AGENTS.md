@@ -12,9 +12,9 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `migration.py` owns common agent-config discovery, JSON/YAML/TOML conversion, backup creation, and atomic replacement.
 - `__main__.py` owns serving, validation, qualification, runtime tool discovery, direct tool-call, and process-report console contracts.
 - `app.py` owns the loopback Streamable HTTP application, agent-label propagation, Origin policy, and background profile watcher.
-- `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, worker selection, and atomic upstream reload.
+- `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, input-fingerprinted worker selection, and atomic upstream reload.
 - `selection.py` owns typed agent selector parsing, namespaced input validation and canonicalization, normalization, and fail-closed set computation.
-- `upstream.py` owns one stdio process/session worker, bounded calls, and exact call activity transitions.
+- `upstream.py` owns one stdio process/session worker, worker-local argument rendering, bounded calls, and exact call activity transitions.
 - `qualification.py` owns generic checks and reviewed upstream-specific sharing admission.
 - `runtime_report.py` owns metadata-only counters and atomic JSON snapshots.
 - `audit.py` owns one metadata-only JSON-line record per completed or rejected call.
@@ -30,7 +30,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields and duplicate YAML keys are errors.
 - `serial` and `parallel` concurrency are explicit per-upstream contracts.
-- Non-shareable workers are keyed by downstream session and never reused across sessions.
+- Non-shareable workers are keyed by downstream session, upstream, and a stable fingerprint of canonical inputs; raw input values never enter runtime or audit metadata.
+- Dynamic workspace arguments are rendered into a fresh worker-local argument list immediately before process startup; frozen profile arguments are never mutated.
 - Every upstream declares a positive `idle_timeout_seconds`; each shared or isolated worker expires independently when it has no queued or active calls and is recreated on demand.
 - Shutdown closes the HTTP session manager before workers and bounds active-call draining.
 - Requested sharing defaults to isolated when qualification fails; strict mode aborts startup.

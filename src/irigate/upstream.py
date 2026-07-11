@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -35,6 +36,7 @@ class UpstreamWorker:
         key: str,
         config: UpstreamConfig,
         environment: dict[str, str],
+        inputs: Mapping[str, str] | None = None,
         event_sink: Callable[[str, float], None] | None = None,
         idle_sink: Callable[[UpstreamWorker], None] | None = None,
         activity_sink: Callable[[str], None] | None = None,
@@ -42,6 +44,7 @@ class UpstreamWorker:
         self.key = key
         self.config = config
         self.environment = environment
+        self.inputs = dict(inputs or {})
         self._event_sink = event_sink
         self._idle_sink = idle_sink
         self._activity_sink = activity_sink
@@ -81,13 +84,17 @@ class UpstreamWorker:
 
     async def _run(self) -> None:
         assert self._ready is not None
-        params = StdioServerParameters(
-            command=self.config.command,
-            args=list(self.config.args),
-            cwd=self.config.cwd,
-            env=self.environment,
-        )
         try:
+            args = [
+                self.inputs["workspace"] if arg == "{workspace}" else arg
+                for arg in self.config.args
+            ]
+            params = StdioServerParameters(
+                command=self.config.command,
+                args=args,
+                cwd=self.config.cwd,
+                env=self.environment,
+            )
             async with stdio_client(params) as streams:
                 async with ClientSession(streams[0], streams[1]) as session:
                     await session.initialize()

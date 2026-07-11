@@ -90,6 +90,68 @@ async def test_non_shareable_state_is_not_reused_across_sessions() -> None:
         await broker.close()
 
 
+async def test_workspace_arguments_are_scoped_to_session_and_input(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from irigate.selection import parse_selection
+
+    workspace_server = Path(__file__).parent / "fixtures" / "workspace_server.py"
+    workspace_a = tmp_path / "workspace-a"
+    workspace_b = tmp_path / "workspace-b"
+    workspace_a.mkdir()
+    workspace_b.mkdir()
+    definition = upstream(args=[str(workspace_server), "{workspace}"])
+    definition["inputs"] = {
+        "workspace": {
+            "type": "directory",
+            "required": True,
+            "allowed_roots": [str(tmp_path)],
+        }
+    }
+    config = config_for(8765, {"filesystem": definition})
+    selection_a = parse_selection(
+        [("upstreams", "filesystem"), ("filesystem.workspace", str(workspace_a))],
+        config.upstreams,
+    )
+    selection_b = parse_selection(
+        [("upstreams", "filesystem"), ("filesystem.workspace", str(workspace_b))],
+        config.upstreams,
+    )
+    broker = Broker(config)
+    await broker.start()
+    try:
+        result_a = await broker.call_tool(
+            "filesystem__workspace", {}, "session-a", selection_a
+        )
+        result_b = await broker.call_tool(
+            "filesystem__workspace", {}, "session-b", selection_b
+        )
+        worker_a = await broker.worker_for(
+            "filesystem", "session-a", selection_a.inputs
+        )
+        reused_a = await broker.worker_for(
+            "filesystem", "session-a", selection_a.inputs
+        )
+        worker_b = await broker.worker_for(
+            "filesystem", "session-b", selection_b.inputs
+        )
+        changed_a = await broker.worker_for(
+            "filesystem", "session-a", selection_b.inputs
+        )
+
+        assert result_a.structuredContent == {"workspace": str(workspace_a)}
+        assert result_b.structuredContent == {"workspace": str(workspace_b)}
+        assert reused_a is worker_a
+        assert worker_b is not worker_a
+        assert changed_a is not worker_a
+        runtime_output = repr(broker.runtime_snapshot())
+        captured_output = capsys.readouterr()
+        assert str(workspace_a) not in runtime_output + captured_output.err
+        assert str(workspace_b) not in runtime_output + captured_output.err
+    finally:
+        await broker.close()
+
+
 async def test_every_shareable_profile_entry_names_its_reviewed_qualifier() -> None:
     from irigate.config import load_config
 

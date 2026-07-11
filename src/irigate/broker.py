@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import time
 from collections.abc import Sequence
 from typing import Any, Hashable
@@ -12,7 +13,7 @@ from irigate.config import ConfigurationError
 from irigate.models import BrokerConfig
 from irigate.qualification import QualificationResult, qualify_upstream
 from irigate.runtime_report import RuntimeMetrics
-from irigate.selection import Selection, ToolSelection
+from irigate.selection import InputBindings, Selection, ToolSelection
 from irigate.upstream import UpstreamError, UpstreamTimeout, UpstreamWorker
 
 
@@ -36,7 +37,7 @@ class Broker:
         self._runtime = RuntimeMetrics(config)
         self._qualifications: dict[str, QualificationResult] = {}
         self._shared: dict[str, UpstreamWorker] = {}
-        self._isolated: dict[tuple[Hashable, str], UpstreamWorker] = {}
+        self._isolated: dict[tuple[Hashable, str, str], UpstreamWorker] = {}
         self._degraded: set[str] = set()
         self._tools_by_upstream: dict[str, dict[str, types.Tool]] = {}
         self._exposed_tools: tuple[types.Tool, ...] = ()
@@ -57,6 +58,7 @@ class Broker:
         self,
         key: str,
         *,
+        inputs: dict[str, str] | None = None,
         config: BrokerConfig | None = None,
         environment: dict[str, dict[str, str]] | None = None,
     ) -> UpstreamWorker:
@@ -66,6 +68,7 @@ class Broker:
             key,
             selected_config.upstreams[key],
             selected_environment[key],
+            inputs,
             event_sink=lambda kind, seconds: self._runtime.duration(key, kind, seconds),
             idle_sink=lambda worker: self._idle_closed(key, worker),
             activity_sink=lambda event: self._activity(key, event),
@@ -88,8 +91,10 @@ class Broker:
             self._runtime.closed(key)
             self._runtime.write()
 
-    async def _start_worker(self, key: str) -> tuple[UpstreamWorker, tuple[types.Tool, ...]]:
-        worker = self._worker(key)
+    async def _start_worker(
+        self, key: str, inputs: dict[str, str]
+    ) -> tuple[UpstreamWorker, tuple[types.Tool, ...]]:
+        worker = self._worker(key, inputs=inputs)
         started = time.monotonic()
         tools = await worker.start()
         worker.account_spawn()
@@ -106,6 +111,7 @@ class Broker:
         key: str,
         config: BrokerConfig,
         environment: dict[str, dict[str, str]],
+        inputs: dict[str, str] | None = None,
     ) -> tuple[QualificationResult | None, UpstreamWorker | None, tuple[types.Tool, ...]]:
         upstream_config = config.upstreams[key]
         qualification: QualificationResult | None = None
@@ -123,7 +129,9 @@ class Broker:
             if not qualification.admitted and self.require_qualified_sharing:
                 raise BrokerInitializationError(f"upstream '{key}' failed qualification")
 
-        worker = self._worker(key, config=config, environment=environment)
+        worker = self._worker(
+            key, inputs=inputs, config=config, environment=environment
+        )
         try:
             started = time.monotonic()
             tools = await worker.start()
@@ -162,15 +170,16 @@ class Broker:
         self._started = True
         self._runtime.write()
 
-    async def _activate(self, key: str) -> None:
+    async def _activate(self, key: str, inputs: InputBindings = ()) -> None:
         if key in self._tools_by_upstream:
             return
         lock = self._activation_locks.setdefault(key, asyncio.Lock())
         async with lock:
             if key in self._tools_by_upstream:
                 return
+            input_values = self._input_values(key, inputs)
             qualification, worker, tools = await self._prepare_upstream(
-                key, self.config, self._environment
+                key, self.config, self._environment, input_values
             )
             self._tools_by_upstream[key] = {tool.name: tool for tool in tools}
             if qualification is None:
@@ -188,7 +197,7 @@ class Broker:
     async def list_tools(self, selection: Selection) -> list[types.Tool]:
         for key in self.config.upstreams:
             if key in selection.upstreams:
-                await self._activate(key)
+                await self._activate(key, selection.inputs)
         exposed = [
             tool
             for key in self.config.upstreams
@@ -206,8 +215,27 @@ class Broker:
             exposed = [tool for tool in exposed if tool.name in selection.tools]
         return exposed
 
-    async def worker_for(self, upstream_key: str, session_key: Hashable) -> UpstreamWorker:
-        await self._activate(upstream_key)
+    @staticmethod
+    def _input_values(upstream_key: str, inputs: InputBindings) -> dict[str, str]:
+        return dict(next((values for key, values in inputs if key == upstream_key), ()))
+
+    @staticmethod
+    def _input_fingerprint(values: dict[str, str]) -> str:
+        digest = hashlib.sha256()
+        for name, value in sorted(values.items()):
+            digest.update(name.encode())
+            digest.update(b"\0")
+            digest.update(value.encode())
+            digest.update(b"\0")
+        return digest.hexdigest()
+
+    async def worker_for(
+        self,
+        upstream_key: str,
+        session_key: Hashable,
+        inputs: InputBindings = (),
+    ) -> UpstreamWorker:
+        await self._activate(upstream_key, inputs)
         if self._closing:
             raise UpstreamError(f"upstream '{upstream_key}' is unavailable")
         self._runtime.binding(upstream_key, session_key)
@@ -215,7 +243,12 @@ class Broker:
         if shared is not None and shared.is_running:
             self._runtime.reused(upstream_key)
             return shared
-        instance_key = (session_key, upstream_key)
+        input_values = self._input_values(upstream_key, inputs)
+        instance_key = (
+            session_key,
+            upstream_key,
+            self._input_fingerprint(input_values),
+        )
         worker = self._isolated.get(instance_key)
         if worker is not None and worker.is_running:
             self._runtime.reused(upstream_key)
@@ -235,12 +268,12 @@ class Broker:
                 and qualification.admitted
                 and upstream_key not in self._degraded
             ):
-                worker, _ = await self._start_worker(upstream_key)
+                worker, _ = await self._start_worker(upstream_key, input_values)
                 self._shared[upstream_key] = worker
                 return worker
             worker = self._isolated.get(instance_key)
             if worker is None or not worker.is_running:
-                worker, _ = await self._start_worker(upstream_key)
+                worker, _ = await self._start_worker(upstream_key, input_values)
                 self._isolated[instance_key] = worker
             else:
                 self._runtime.reused(upstream_key)
@@ -271,7 +304,11 @@ class Broker:
             ] = {}
             try:
                 for key in config.upstreams:
-                    if key in changed and key in self._tools_by_upstream:
+                    if (
+                        key in changed
+                        and key in self._tools_by_upstream
+                        and not config.upstreams[key].inputs
+                    ):
                         upstream = config.upstreams[key]
                         self._runtime.ensure_upstream(
                             key, upstream.shareable, upstream.qualifier
@@ -385,7 +422,8 @@ class Broker:
                 duration_seconds=time.monotonic() - audit_started,
             )
             return self._error("tool is not included in this agent selection")
-        await self._activate(upstream_key)
+        selection_inputs = selection.inputs if selection is not None else ()
+        await self._activate(upstream_key, selection_inputs)
         tools = self._tools_by_upstream[upstream_key]
         if tool_name not in tools:
             self._audit.emit(
@@ -405,7 +443,9 @@ class Broker:
             return self._error("broker is shutting down")
         self._runtime.agent_call(agent, upstream_key)
         try:
-            worker = await self.worker_for(upstream_key, session_key)
+            worker = await self.worker_for(
+                upstream_key, session_key, selection_inputs
+            )
             started = time.monotonic()
             try:
                 result = await worker.call_tool(tool_name, arguments)

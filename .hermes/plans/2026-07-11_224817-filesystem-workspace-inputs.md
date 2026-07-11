@@ -20,7 +20,7 @@ The user approved implementation. Approval authorizes code, tests, profile, and 
 | 2. Canonical workspace matching | Done | Committed checkpoint |
 | 3. Namespaced upstream inputs | Done | Committed checkpoint |
 | 4. Streamable HTTP session binding | Done | Committed checkpoint |
-| 5. Per-session arguments and workers | Todo | Requires Phase 4 commit checkpoint |
+| 5. Per-session arguments and workers | Done | Verified: 31 focused and 183 full-suite tests passed |
 | 6. Profile and documentation | Todo | Requires Phase 5 commit checkpoint |
 | 7. Verification and closeout | Todo | Requires Phase 6 commit checkpoint |
 
