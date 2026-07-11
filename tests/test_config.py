@@ -70,6 +70,38 @@ def test_rejects_duplicate_yaml_keys(tmp_path: Path) -> None:
         load_config(write_profile(tmp_path, profile))
 
 
+def test_missing_required_broker_fields_report_actionable_examples(
+    tmp_path: Path,
+) -> None:
+    profile = write_profile(tmp_path, "host: 127.0.0.1\n")
+
+    with pytest.raises(ConfigurationError) as exc_info:
+        load_config(profile)
+
+    message = str(exc_info.value)
+    assert "name: required profile identifier" in message
+    assert "name: local" in message
+    assert "upstreams: required non-empty mapping" in message
+    assert "idle_timeout_seconds: 300" in message
+
+
+def test_cli_logs_actionable_error_for_missing_broker_fields(tmp_path: Path) -> None:
+    profile = write_profile(tmp_path, "host: 127.0.0.1\n")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "irigate", "--config", str(profile), "--check"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "configuration error:" in result.stderr
+    assert "name: local" in result.stderr
+    assert "upstreams:" in result.stderr
+
+
 @pytest.mark.parametrize("command", ["", "   ", "python -m echo_server"])
 def test_rejects_invalid_commands(tmp_path: Path, command: str) -> None:
     profile = VALID_PROFILE.replace("command: python3", f"command: '{command}'")

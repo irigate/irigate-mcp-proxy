@@ -41,6 +41,18 @@ def _format_validation_error(error: ValidationError) -> str:
     messages: list[str] = []
     for item in error.errors(include_input=False, include_url=False):
         location = ".".join(str(part) for part in item["loc"])
+        if item["type"] == "missing" and item["loc"] == ("name",):
+            messages.append(
+                "name: required profile identifier (example: name: local)"
+            )
+            continue
+        if item["type"] == "missing" and item["loc"] == ("upstreams",):
+            messages.append(
+                "upstreams: required non-empty mapping "
+                "(example: upstreams: {echo: {command: python3, "
+                "args: [-m, echo_server], idle_timeout_seconds: 300}})"
+            )
+            continue
         message = str(item["msg"]).removeprefix("Value error, ")
         messages.append(f"{location}: {message}" if location else message)
     return "; ".join(messages)

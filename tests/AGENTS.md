@@ -15,6 +15,7 @@ Executable contracts for Irigate configuration, background reload, transport, ro
 
 - Tests must not read credential values or depend on operator `.env` files.
 - Environment-reference tests use `monkeypatch` with synthetic values and assert that errors/output expose names only.
+- Missing required-field tests exercise both loader errors and the CLI stderr boundary.
 - Process tests must restore the process table to baseline before passing.
 - Every regression test must fail against the behavior it was added to protect.
 

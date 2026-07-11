@@ -44,7 +44,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 
 - Keep configuration parsing free of process startup side effects.
 - Return typed models from public loaders; do not pass raw YAML mappings into runtime code.
-- Error messages may identify fields and environment-variable names, never resolved values.
+- Error messages may identify fields and environment-variable names, never resolved values. Missing required broker fields include credential-free, actionable profile examples.
 - Runtime tool discovery prints namespaced tool names only and closes every worker before returning.
 
 ## Verification

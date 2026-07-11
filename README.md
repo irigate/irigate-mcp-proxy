@@ -112,6 +112,21 @@ upstreams:
 | `runtime_report_path` | No | Disabled | JSON report destination. The file is refreshed atomically and contains metadata only. |
 | `upstreams` | Yes | — | Non-empty mapping of routing keys to stdio upstream definitions. |
 
+The smallest useful profile includes both required broker fields and the two required fields for each upstream:
+
+```yaml
+name: local-development
+upstreams:
+  context7:
+    command: npx
+    args: ["-y", "@upstash/context7-mcp"]
+    idle_timeout_seconds: 300
+```
+
+Choose `name` as a stable identifier for where or why the profile runs, such as `local-development`, `project-docs`, or `benchmark`. It appears in validation output and runtime reports but does not change routing. Choose each upstream key, such as `context7`, as the stable tool namespace: the key becomes the prefix in `<upstream-key>__<tool-name>`. Add every MCP server Irigate should be able to expose under `upstreams`; at least one entry is required.
+
+If either broker field is absent, Irigate exits before starting the HTTP listener and writes an actionable configuration error to stderr with a minimal example.
+
 An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>` route. Keys must start with a lowercase letter and may contain lowercase letters, digits, and hyphens.
 
 ### Upstream fields
