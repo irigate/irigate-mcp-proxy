@@ -24,6 +24,10 @@ Static Astro website for `https://irigate.io`, including product pages, public d
 - Keep `site/dist/`, `site/.astro/`, and `site/node_modules/` generated and untracked.
 - Keep dependency install scripts denied unless explicitly approved in `pnpm-workspace.yaml`; esbuild is the reviewed baseline exception required by Astro.
 - Bind development and preview servers to loopback unless an operator explicitly chooses otherwise.
+- Keep `public/logo.svg` and `public/logo-mark.svg` byte-for-byte synchronized from `assets/`; `public/favicon.svg` is a direct mark copy unless a later durable contract replaces it.
+- Keep `public/og-default.png` site-owned at exactly 1200x630; do not generate it from or by changing `assets/build_logo.py`.
+- Generate `robots.txt` and `llms.txt` from Astro endpoints using `Astro.site` and validated content metadata; keep `llms.txt` concise, ordered as `Docs`, `Evidence`, `Source`, `Optional`, and free of `GITHUB-PAGES.md`.
+- Emit JSON-LD only through `SeoHead.astro`: `SoftwareApplication` on the homepage and `FAQPage` on `/docs/faq/`; visible FAQ answers must match structured answers.
 
 ## Work Guidance
 

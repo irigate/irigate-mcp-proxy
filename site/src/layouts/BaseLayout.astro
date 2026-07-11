@@ -9,9 +9,11 @@ export interface Props {
   description: string;
   seoDescription?: string;
   path?: string;
+  jsonLd?: "software" | "faq";
+  faqItems?: Array<{ question: string; answer: string }>;
 }
 
-const { title, description, seoDescription = description, path } = Astro.props;
+const { title, description, seoDescription = description, path, jsonLd, faqItems } = Astro.props;
 const themeBootstrap = `(() => {
   const key = "irigate.theme";
   const values = new Set(["light", "dark", "system"]);
@@ -30,7 +32,7 @@ const themeBootstrap = `(() => {
 <!doctype html>
 <html lang="en" data-theme-preference="system">
   <head>
-    <SeoHead title={title} description={seoDescription} path={path} />
+    <SeoHead title={title} description={seoDescription} path={path} jsonLd={jsonLd} faqItems={faqItems} />
     <script is:inline set:html={themeBootstrap}></script>
   </head>
   <body>

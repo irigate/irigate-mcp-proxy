@@ -7,12 +7,14 @@ export interface Props {
   seoDescription?: string;
   path?: string;
   eyebrow?: string;
+  jsonLd?: "faq";
+  faqItems?: Array<{ question: string; answer: string }>;
 }
 
-const { title, description, seoDescription, path, eyebrow = "Documentation" } = Astro.props;
+const { title, description, seoDescription, path, eyebrow = "Documentation", jsonLd, faqItems } = Astro.props;
 ---
 
-<BaseLayout title={title} description={description} seoDescription={seoDescription} path={path}>
+<BaseLayout title={title} description={description} seoDescription={seoDescription} path={path} jsonLd={jsonLd} faqItems={faqItems}>
   <article class="document reading section">
     <header class="document__header">
       <p class="eyebrow">{eyebrow}</p>

@@ -10,7 +10,7 @@ route:
 source: "https://github.com/irigate/irigate-mcp-proxy/blob/main/MARKET-RESEARCH.md"
 ---
 
-These answers are visible HTML content. Structured FAQ metadata is intentionally left for the later SEO phase.
+These answers are visible HTML content and match the FAQ structured metadata.
 
 ## What is an MCP broker?
 
