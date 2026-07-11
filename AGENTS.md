@@ -97,7 +97,7 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 - `assets/AGENTS.md` — Reproducible project brand assets and Iris-gate design contract.
 - `profiles/AGENTS.md` — Validated static runtime and benchmark profiles.
 - `scripts/AGENTS.md` — Repeatable production compatibility and benchmark evidence harnesses.
-- `site/AGENTS.md` — Static Astro website, public content, and local website verification contracts.
+- `site/` (git submodule) — Static Astro website and GitHub Pages deployment. Upstream `irigate/irigate.github.io`, branch `main`; its own `AGENTS.md` controls website work.
 - `spikes/AGENTS.md` — Disposable transport, sharing, failure, and client-compatibility evidence.
 - `src/AGENTS.md` — Production package source and module contracts.
 - `tests/AGENTS.md` — Executable behavioral and process-lifecycle contracts.
@@ -105,8 +105,6 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 Root-owned artifacts:
 
 - `.github/workflows/site-check.yml` — Pull-request and non-main push validation for the static Astro site.
-- `.github/workflows/site-deploy.yml` — Main-branch and manual GitHub Pages deployment for the static Astro site.
-- `GITHUB-PAGES.md` — Repository-only GitHub Pages deployment maintenance guide and Phase 0 authorization record.
 - `README.md` — Current product boundary, MVP summary, and project status.
 - `IMPLEMENTATION.md` — Current runtime architecture, implementation contracts, extension workflows, and verification.
 - `MARKET-RESEARCH.md` — Market hypothesis, competitive positioning, evidence requirements, and go/no-go criteria.

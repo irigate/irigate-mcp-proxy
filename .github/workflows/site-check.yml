@@ -3,6 +3,8 @@ name: Site check
 on:
   pull_request:
     paths:
+      - ".gitmodules"
+      - "site"
       - "site/**"
       - "assets/**"
       - "AGENTS.md"
@@ -10,11 +12,12 @@ on:
       - "IMPLEMENTATION.md"
       - "MARKET-RESEARCH.md"
       - ".github/workflows/site-check.yml"
-      - ".github/workflows/site-deploy.yml"
   push:
     branches-ignore:
       - main
     paths:
+      - ".gitmodules"
+      - "site"
       - "site/**"
       - "assets/**"
       - "AGENTS.md"
@@ -22,19 +25,20 @@ on:
       - "IMPLEMENTATION.md"
       - "MARKET-RESEARCH.md"
       - ".github/workflows/site-check.yml"
-      - ".github/workflows/site-deploy.yml"
 
 permissions:
   contents: read
 
 jobs:
   verify:
-    name: Verify static site
+    name: Verify pinned website
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          submodules: true
 
       - name: Set up Node
         uses: actions/setup-node@v5

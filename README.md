@@ -32,6 +32,18 @@ A broker may improve this when:
 
 Sharing is not universally safe. Some MCP servers retain client-specific state, and distinct workspaces or credentials may still require separate instances. Irigate must prove the benefit per upstream rather than assuming every N×M process set can collapse to M.
 
+## Website
+
+The public website and documentation are maintained in the `site/` git submodule, backed by [`irigate/irigate.github.io`](https://github.com/irigate/irigate.github.io). The website repository owns Astro dependencies, content, verification, GitHub Pages deployment, and custom-domain operations. This source repository remains authoritative for broker behavior, architecture, benchmark evidence, and brand source assets.
+
+Initialize the website after cloning this repository:
+
+```bash
+git submodule update --init site
+```
+
+Website changes require two commits: commit and push inside `site/` first, then commit the updated `site` pointer in this repository.
+
 ## Requirements
 
 - Python 3.11 through 3.14.

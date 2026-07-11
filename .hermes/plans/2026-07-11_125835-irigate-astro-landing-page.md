@@ -2,17 +2,18 @@
 
 ## Goal
 
-Create a fast, accessible, SEO-focused Astro website in `site/`, publish it to GitHub Pages at `https://irigate.io`, and rebuild it whenever the website, Markdown/MDX content, shared brand assets, or deployment workflow changes. The site must be fully testable locally before deployment.
+Create a fast, accessible, SEO-focused Astro website, publish it to GitHub Pages at `https://irigate.io`, and rebuild it whenever the website, Markdown/MDX content, shared brand assets, or deployment workflow changes. The site must be fully testable locally before deployment.
 
 ## Current context and decisions
 
-- Repository: `irigate/irigate-mcp-proxy`, branch `main`.
+- Source repository: `irigate/irigate-mcp-proxy`, branch `main`.
+- Website repository: `irigate/irigate.github.io`, branch `main`, mounted in the source repository as the `site/` git submodule.
 - Product boundary: loopback-only local MCP broker for developers running multiple AI coding agents; not an enterprise gateway, remote service, identity layer, Kubernetes control plane, or model API proxy.
 - Existing source material: `README.md`, `IMPLEMENTATION.md`, `MARKET-RESEARCH.md`, and generated brand assets under `assets/`.
 - Existing visual contract: gold `#ffc72c`, amber `#f9a23a`, Georgia serif wordmark, Iris-gate mark, transparent assets.
 - Hosting: static GitHub Pages deployment with custom apex domain `irigate.io`.
 - Astro configuration: `site: "https://irigate.io"`, static output, no `base` because the custom domain is at the origin root.
-- Site location: dedicated `site/` directory so Node dependencies and generated output do not mix with the Python package. The Python `dist/` already lives at the repo root (sdist/build, already gitignored) and `site/dist/` is segregated by directory; the two directories do not collide but will be sibling-named, so `.gitignore` and operator scripts must be explicit about which `dist/` they refer to.
+- Site location: repository root of `irigate/irigate.github.io`; the source repository mounts it at `site/` as a submodule so Node dependencies and generated output remain outside the Python repository's history.
 - Content model: page copy and documentation live as Markdown/MDX under `site/src/content/`. Astro components own layout and visual presentation; substantive product text remains editable as content rather than being embedded throughout templates.
 - Content sourcing model: hand-derive `site/src/content/docs/*.md` from current `README.md`, `IMPLEMENTATION.md`, and `MARKET-RESEARCH.md` once per content change. Do not parse arbitrary headings out of those root docs at build time — that would create brittle coupling to document structure. The synchronization contract lives in `site/AGENTS.md` and is enforced by the Phase 6 path filters.
 - Design direction: technical editorial with complete light and dark palettes—ink surfaces in dark mode, warm paper surfaces in light mode, existing gold/amber accent, serif display headings, neutral sans-serif body, terminal and architecture panels, restrained motion, and no decorative AI gradients.
@@ -22,18 +23,23 @@ Create a fast, accessible, SEO-focused Astro website in `site/`, publish it to G
 - Versions observed on 2026-07-11: Astro `7.0.7`, `@astrojs/mdx` `7.0.2`, `@astrojs/sitemap` `3.7.3`. Resolve and lock compatible versions during implementation rather than relying on floating versions.
 - Official GitHub Pages workflow versions observed in current Astro guidance: `actions/checkout@v7` (latest `v7.0.0`), `withastro/action@v6`, `actions/deploy-pages@v5` (latest `v5.0.0`), Node 24. GitHub runners force Node 24 for JS actions as of 2026-06-02; the plan pins Node 24 explicitly.
 - Pin-to-SHA policy: this plan mixes pinning conventions. Action majors (`@v5`, `@v6`, `@v7`) follow GitHub's official-published major for these maintained actions; third-party packages use semver ranges plus the committed lockfile. Do not introduce a third convention.
+- Migration note: the Phase 1–10 sections retain the original implementation paths for checkpoint traceability. Current website files and workflows live at the root of `irigate/irigate.github.io`; from this repository those same files appear under the `site/` submodule. `site/GITHUB-PAGES.md` is the current operations guide.
 
 ## Proposed site structure
 
 ```text
-GITHUB-PAGES.md
 site/
 ├── AGENTS.md
+├── GITHUB-PAGES.md
 ├── README.md
 ├── package.json
 ├── pnpm-lock.yaml
 ├── astro.config.mjs
 ├── tsconfig.json
+├── .github/
+│   └── workflows/
+│       ├── site-check.yml
+│       └── site-deploy.yml
 ├── public/
 │   ├── CNAME
 │   ├── favicon.svg
@@ -79,10 +85,6 @@ site/
     └── styles/
         ├── global.css
         └── tokens.css
-.github/
-└── workflows/
-    ├── site-check.yml
-    └── site-deploy.yml
 ```
 
 The exact component count may shrink during implementation. Do not create a component that is used only once unless it materially clarifies a large page.
@@ -274,12 +276,13 @@ Content schemas must require unique title, description, and SEO description fiel
 | Phase 5 — add deterministic built-site verification | Done | Committed as `89664bb`. |
 | Phase 6 — add pull-request and push validation workflow | Done | Committed as `b782225`; local `act` requires a Docker daemon. |
 | Phase 7 — add GitHub Pages deployment workflow | Done | Committed as `139e79a`; local `act` requires a Docker daemon. |
-| Phase 0 — confirm open deployment inputs | Done | Authorized by Raphael Bossek in `GITHUB-PAGES.md`. |
+| Phase 0 — confirm open deployment inputs | Done | Authorized by Raphael Bossek in `site/GITHUB-PAGES.md`. |
 | Phase 9 — add GitHub Pages maintenance guide | Done | Committed as `211d913`. |
 | Phase 8a — add local custom-domain artifact | Done | Committed as `c8f0a6b`. |
-| Phase 8b — configure and verify DNS | Done | Apex GitHub Pages A results and `www` CNAME verified recursively and on all authoritative nameservers; commit checkpoint pending. |
-| Phase 8c — enable Pages and verify deployment | Gated | Requires pushing the deployment workflow; prohibited by the current no-push constraint. |
-| Phase 10 — update repository-facing documentation | Todo | Starts after the domain gate and maintenance guide are complete. |
+| Phase 8b — configure and verify DNS | Done | Committed as `bf61580`; apex A results and `www` CNAME verified recursively and on all authoritative nameservers. |
+| Phase 8c — enable Pages and verify deployment | Done | GitHub Actions deployment run `29155642608` passed; `irigate.io` is verified and HTTPS enforcement is enabled. |
+| Phase 10 — update repository-facing documentation | Done | Operations guide moved to the website repository; parent README and DOX describe the submodule workflow. |
+| Repository migration — move website ownership to `irigate/irigate.github.io` | Done | Child commit `4d52d07` pushed; parent submodule verification passed and is recorded by this checkpoint. |
 
 ### Phase 0 — confirm open deployment inputs (gate, not a build phase)
 
@@ -290,9 +293,9 @@ Inputs:
 1. Confirm which GitHub account or organization owns/verifies `irigate.io`.
 2. Confirm DNS provider access and whether it supports apex ALIAS/ANAME flattening.
 3. Confirm whether `www.irigate.io` should redirect to the apex; recommended: yes.
-4. Confirm GitHub Pages is enabled for `irigate/irigate-mcp-proxy` and the repository visibility/plan permits it.
+4. Confirm GitHub Pages is enabled for `irigate/irigate.github.io` and the repository visibility permits it.
 
-Gate: a written section in `GITHUB-PAGES.md` (Phase 9) records every answer and the operator's name; without those entries, Phase 8 cutover is not permitted.
+Gate: a written section in `site/GITHUB-PAGES.md` (Phase 9) records every answer and the operator's name; without those entries, Phase 8 cutover is not permitted.
 
 Re-check the current GitHub Pages DNS guidance (A records, AAAA records, apex flattening options, custom-domain verification) immediately before Phase 8 implementation. Do not rely on values written here.
 
