@@ -17,7 +17,7 @@ The user approved implementation. Approval authorizes code, tests, profile, and 
 | Phase | Status | Checkpoint |
 | --- | --- | --- |
 | 1. Profile models and validation | Done | Committed checkpoint |
-| 2. Canonical workspace matching | Todo | Requires Phase 1 commit checkpoint |
+| 2. Canonical workspace matching | Done | Committed checkpoint |
 | 3. Namespaced upstream inputs | Todo | Requires Phase 2 commit checkpoint |
 | 4. Streamable HTTP session binding | Todo | Requires Phase 3 commit checkpoint |
 | 5. Per-session arguments and workers | Todo | Requires Phase 4 commit checkpoint |

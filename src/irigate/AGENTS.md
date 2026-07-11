@@ -7,6 +7,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 ## Ownership
 
 - `models.py` owns typed static configuration and fail-closed field validation.
+- `workspace.py` owns strict canonical directory resolution and segment-based `allowed_roots` authorization.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
 - `migration.py` owns common agent-config discovery, JSON/YAML/TOML conversion, backup creation, and atomic replacement.
 - `__main__.py` owns serving, validation, qualification, runtime tool discovery, direct tool-call, and process-report console contracts.
