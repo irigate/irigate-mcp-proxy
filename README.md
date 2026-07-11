@@ -215,6 +215,16 @@ uv run --frozen irigate tools --config profiles/mvp.yaml
 
 The command prints one `<upstream>__<tool>` name per line so its output can be copied into `tools=`. Tool schemas are runtime metadata rather than static profile fields, so discovery temporarily starts and initializes every configured upstream, then closes all spawned processes. It may therefore download upstream packages, use the network, and require the profile's referenced environment variables. Use `--check` instead when only configuration validation without startup is needed.
 
+Call a namespaced tool directly from a shell without starting the HTTP listener:
+
+```bash
+uv run --frozen irigate call --config profiles/mvp.yaml \
+  code-review-graph__build_or_update_graph_tool \
+  --arguments '{"repo_root":"/path/to/project","full_rebuild":false}'
+```
+
+`--arguments` accepts one JSON object and defaults to `{}`. The command prints the complete MCP `CallToolResult` as JSON, exits `0` for a successful tool result, `1` for an MCP or upstream error, and `2` for invalid configuration or arguments. The upstream starts only for this call and is closed before the command exits. Pass credentials through the profile's environment references, never through tool arguments.
+
 An agent can combine Irigate with a directly managed MCP server:
 
 ```yaml

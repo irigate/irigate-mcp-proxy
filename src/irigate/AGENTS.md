@@ -8,7 +8,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 
 - `models.py` owns typed static configuration and fail-closed field validation.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
-- `__main__.py` owns serving, validation, qualification, and runtime tool-discovery console contracts.
+- `__main__.py` owns serving, validation, qualification, runtime tool discovery, and direct tool-call console contracts.
 - `app.py` owns the loopback Streamable HTTP application, Origin policy, and background profile watcher.
 - `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, worker selection, and atomic upstream reload.
 - `selection.py` owns typed agent selector parsing, normalization, and fail-closed set computation.
@@ -39,6 +39,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - A request without a selector uses all configured upstreams. A selected request uses one `tools` or `upstreams` mode; upstream exclusions override inclusions and unknown names fail closed.
 - Qualification, schema discovery, and process startup occur only when an agent first selects an upstream; concurrent first selection is single-flight per upstream.
 - Exact tool selectors filter `tools/list` and dispatch; process-wide activation by another agent never broadens a request's selection.
+- Direct CLI calls accept one JSON object, emit the complete MCP result as JSON, return nonzero for tool errors, and close their worker before exiting.
 
 ## Work Guidance
 
@@ -46,6 +47,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Return typed models from public loaders; do not pass raw YAML mappings into runtime code.
 - Error messages may identify fields and environment-variable names, never resolved values. Missing required broker fields include credential-free, actionable profile examples.
 - Runtime tool discovery prints namespaced tool names only and closes every worker before returning.
+- Direct CLI tool arguments must not carry credentials; use profile environment references.
 
 ## Verification
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -262,6 +263,107 @@ def test_cli_tools_lists_namespaced_tools_from_profile(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == ["echo__repeat", "echo__terminate"]
+
+
+def test_cli_call_invokes_namespaced_tool_with_json_arguments(tmp_path: Path) -> None:
+    echo_server = Path(__file__).parent / "fixtures" / "echo_server.py"
+    profile = write_profile(
+        tmp_path,
+        "\n".join(
+            [
+                "name: tool-call",
+                "host: 127.0.0.1",
+                "port: 8765",
+                "upstreams:",
+                "  echo:",
+                "    transport: stdio",
+                f"    command: {sys.executable}",
+                f"    args: [{echo_server}]",
+                "    env: {}",
+                "    shareable: false",
+                "    concurrency: serial",
+                "    call_timeout_seconds: 5",
+                "    idle_timeout_seconds: 60",
+            ]
+        ),
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "irigate",
+            "call",
+            "--config",
+            str(profile),
+            "echo__repeat",
+            "--arguments",
+            '{"value":"from-cli"}',
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["isError"] is False
+    assert output["structuredContent"] == {"value": "from-cli"}
+
+
+@pytest.mark.parametrize("arguments", ["not-json", "[]", '"value"'])
+def test_cli_call_rejects_arguments_that_are_not_json_objects(
+    tmp_path: Path, arguments: str
+) -> None:
+    profile = write_profile(tmp_path, VALID_PROFILE)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "irigate",
+            "call",
+            "--config",
+            str(profile),
+            "echo__repeat",
+            "--arguments",
+            arguments,
+        ],
+        text=True,
+        capture_output=True,
+        env={**os.environ, "TEST_CONTEXT7_API_KEY": "synthetic-secret-value"},
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "arguments error:" in result.stderr
+    assert "synthetic-secret-value" not in result.stdout + result.stderr
+
+
+def test_cli_call_returns_nonzero_for_tool_error(tmp_path: Path) -> None:
+    profile = write_profile(tmp_path, VALID_PROFILE)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "irigate",
+            "call",
+            "--config",
+            str(profile),
+            "missing__tool",
+        ],
+        text=True,
+        capture_output=True,
+        env={**os.environ, "TEST_CONTEXT7_API_KEY": "synthetic-secret-value"},
+        check=False,
+    )
+
+    assert result.returncode == 1
+    output = json.loads(result.stdout)
+    assert output["isError"] is True
+    assert "unknown upstream prefix" in output["content"][0]["text"]
+    assert "synthetic-secret-value" not in result.stdout + result.stderr
 
 
 def test_cli_exits_nonzero_on_validation_error(tmp_path: Path) -> None:

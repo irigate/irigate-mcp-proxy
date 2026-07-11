@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from collections.abc import Sequence
 
@@ -37,6 +38,15 @@ def build_parser() -> argparse.ArgumentParser:
         "tools", help="start configured upstreams and list namespaced tools"
     )
     tools.add_argument("--config", required=True, help="YAML profile path")
+    call = subcommands.add_parser("call", help="call one namespaced MCP tool")
+    call.add_argument("--config", required=True, help="YAML profile path")
+    call.add_argument("tool", help="namespaced tool name")
+    call.add_argument(
+        "--arguments",
+        default="{}",
+        metavar="JSON",
+        help="tool arguments as a JSON object (default: {})",
+    )
     return parser
 
 
@@ -46,6 +56,18 @@ async def list_configured_tools(config: BrokerConfig) -> list[str]:
     try:
         selection = parse_selection((), config.upstreams)
         return [tool.name for tool in await broker.list_tools(selection)]
+    finally:
+        await broker.close()
+
+
+async def call_configured_tool(
+    config: BrokerConfig, tool: str, arguments: dict[str, object]
+) -> tuple[str, bool]:
+    broker = Broker(config)
+    await broker.start()
+    try:
+        result = await broker.call_tool(tool, arguments, "cli")
+        return result.model_dump_json(exclude_none=True), result.isError is True
     finally:
         await broker.close()
 
@@ -77,6 +99,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         for tool_name in tool_names:
             print(tool_name)
         return 0
+
+    if args.command == "call":
+        try:
+            arguments = json.loads(args.arguments)
+        except json.JSONDecodeError as exc:
+            print(f"arguments error: invalid JSON: {exc.msg}", file=sys.stderr)
+            return 2
+        if not isinstance(arguments, dict):
+            print("arguments error: JSON value must be an object", file=sys.stderr)
+            return 2
+        try:
+            output, is_error = asyncio.run(
+                call_configured_tool(config, args.tool, arguments)
+            )
+        except BrokerInitializationError as exc:
+            print(f"tool call error: {exc}", file=sys.stderr)
+            return 1
+        print(output)
+        return 1 if is_error else 0
 
     if args.check:
         upstreams = ",".join(config.upstreams)
