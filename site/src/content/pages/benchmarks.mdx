@@ -1,0 +1,65 @@
+---
+title: "Benchmarks"
+description: "Measured Context7 process and memory evidence for Irigate, with the current latency limitation."
+seoDescription: "Irigate benchmark results for 1, 5, and 20 identical-context Context7 clients, including process, RSS, and latency limitations."
+order: 1
+route:
+  path: "/benchmarks/"
+  slug: "benchmarks"
+section: "evidence"
+---
+
+import Callout from "../../components/Callout.astro";
+
+# Benchmarks
+
+The current benchmark evidence comes from the production broker harness for the qualified Context7 upstream. It supports a narrow resource-consolidation claim for identical credential-free, workspace-free contexts. It does not support a call-latency improvement claim.
+
+<Callout title="Source material" tone="evidence">
+  <p>
+    Figures are hand-synchronized from <a href="https://github.com/irigate/irigate-mcp-proxy/blob/main/MARKET-RESEARCH.md">MARKET-RESEARCH.md</a>.
+    The harness lives at <a href="https://github.com/irigate/irigate-mcp-proxy/blob/main/scripts/benchmark.py">scripts/benchmark.py</a>.
+  </p>
+</Callout>
+
+## Measured resource results
+
+Three repetitions produced these medians and ranges:
+
+| Clients | Mode | Upstream instances | OS processes | Resident memory | Startup to first tool list |
+|---:|---|---:|---:|---:|---:|
+| 1 | Direct | 1 (1-1) | 3 (3-3) | 252.1 MiB (252.0-252.5) | 746 ms (699-891) |
+| 1 | Broker | 1 (1-1) | 3 (3-3) | 263.3 MiB (262.6-263.5) | 3,007 ms (2,899-3,261) |
+| 5 | Direct | 5 (5-5) | 15 (15-15) | 1,258.5 MiB (1,258.5-1,260.5) | 1,361 ms (1,338-1,460) |
+| 5 | Broker | 1 (1-1) | 3 (3-3) | 264.1 MiB (263.7-264.7) | 3,777 ms (3,577-3,786) |
+| 20 | Direct | 20 (20-20) | 60 (60-60) | 5,042.0 MiB (5,039.1-5,044.5) | 4,286 ms (4,244-4,953) |
+| 20 | Broker | 1 (1-1) | 3 (3-3) | 266.9 MiB (266.7-267.6) | 3,789 ms (3,668-3,886) |
+
+At five clients, the broker reduced Context7 instances by 80% and resident memory by 79.0%. At 20 clients, it reduced instances by 95% and resident memory by 94.7%. One client had no process saving and used 4.4% more resident memory.
+
+Every completed trial returned its Context7 process count to baseline, and every broker report reconciled with external process roots.
+
+## Latency limitation
+
+The benchmark's Context7 calls were upstream-throttled. Their recorded first-call and steady-state timings are not valid performance evidence.
+
+An unthrottled 20-client diagnostic produced repeated 30-second timeouts and triggered configured degradation, so Irigate makes no high-concurrency latency claim from the current evidence.
+
+## Context limitation
+
+The measured sharing case is Context7 with identical credentials and workspace assumptions. Context7 has neither client credentials nor workspace state, so no distinct-credential or distinct-workspace saving is claimed.
+
+code-review-graph remains isolated because it retains context-bound state. shadcn remains isolated because no reviewed qualifier exists.
+
+## Compatibility snapshot
+
+| Client | Result |
+|---|---|
+| Hermes | Validated one direct Streamable HTTP broker call |
+| Kilo/OpenCode | Validated one direct Streamable HTTP broker call |
+| Codex | Validated one direct Streamable HTTP broker call |
+| Claude Code | Installed, but unavailable because the local CLI was not authenticated |
+
+## Evidence gaps
+
+The next evidence work is a quota-backed latency rerun and normal-session observation. The remaining questions are whether repeated unthrottled calls improve or degrade developer experience, whether realistic distinct contexts eliminate savings, whether authenticated Claude Code works directly, and whether the broker runs normally without orphan processes or state leakage.

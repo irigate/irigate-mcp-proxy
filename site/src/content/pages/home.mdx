@@ -1,0 +1,140 @@
+---
+title: "Irigate"
+description: "A loopback-only local MCP broker for developers running multiple AI coding agents."
+seoDescription: "Irigate is a local MCP broker that lets AI coding agents share explicitly qualified stdio MCP servers on one workstation."
+order: 0
+route:
+  path: "/"
+  slug: ""
+section: "landing"
+---
+
+import ArchitectureDiagram from "../../components/ArchitectureDiagram.astro";
+import BenchmarkEvidence from "../../components/BenchmarkEvidence.astro";
+import Callout from "../../components/Callout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import FeatureGrid from "../../components/FeatureGrid.astro";
+
+export const differentiators = [
+  {
+    title: "Workstation-local consolidation",
+    text: "Irigate runs beside local coding agents and targets duplicate stdio subprocesses on one workstation.",
+  },
+  {
+    title: "Fail-closed sharing",
+    text: "Upstreams are isolated by default. Shared mode requires explicit opt-in and a reviewed qualifier.",
+  },
+  {
+    title: "Metadata-only visibility",
+    text: "Reports track upstreams, tool names, durations, outcomes, and process counts without arguments or results.",
+  },
+];
+
+export const quickStart = `uv tool install --force --from . irigate
+irigate --config profiles/mvp.yaml --check
+irigate --config profiles/mvp.yaml --require-qualified-sharing`;
+
+export const minimalProfile = `name: local-development
+upstreams:
+  context7:
+    command: npx
+    args: ["-y", "@upstash/context7-mcp"]
+    idle_timeout_seconds: 300`;
+
+<section class="hero section shell">
+  <div class="hero__copy">
+    <p class="eyebrow">Local MCP infrastructure</p>
+    <h1>Share local MCP servers across your AI coding agents.</h1>
+    <p class="lede">
+      Irigate is a local MCP broker that lets AI coding agents connect to loopback Streamable HTTP while it supervises selected stdio MCP servers.
+    </p>
+    <div class="button-row">
+      <a class="button" data-variant="primary" href="/docs/getting-started/">Get started</a>
+      <a class="button" href="https://github.com/irigate/irigate-mcp-proxy">View source</a>
+    </div>
+  </div>
+  <CodeBlock label="Current local run" code={quickStart} />
+</section>
+
+<section class="section shell stack" id="architecture">
+  <div class="section-heading">
+    <p class="eyebrow">Before and after</p>
+    <h2>One local broker, explicit upstream modes.</h2>
+  </div>
+  <ArchitectureDiagram variant="before-after" />
+</section>
+
+<section class="section shell stack" id="evidence">
+  <div class="section-heading">
+    <p class="eyebrow">Measured evidence</p>
+    <h2>Process savings for identical-context Context7.</h2>
+    <p>
+      The benchmark in <a href="/benchmarks/">Benchmarks</a> measured Context7 with identical credential-free, workspace-free contexts.
+      It does not support a latency improvement claim because the calls were upstream-throttled.
+    </p>
+  </div>
+  <BenchmarkEvidence />
+</section>
+
+<section class="section shell stack" id="why">
+  <div class="section-heading">
+    <p class="eyebrow">Differentiators</p>
+    <h2>Built for local agent work, not a cloud control plane.</h2>
+  </div>
+  <FeatureGrid features={differentiators} />
+</section>
+
+<section class="section shell steps" id="how-it-works">
+  <div>
+    <p class="eyebrow">How it works</p>
+    <h2>Configure, start, connect.</h2>
+  </div>
+  <ol>
+    <li><strong>Configure</strong> a YAML profile with loopback listener settings and stdio upstreams.</li>
+    <li><strong>Start</strong> Irigate with `--config`; upstreams remain stopped until selected.</li>
+    <li><strong>Connect</strong> agents to a loopback URL and narrow access with `tools=` or `upstreams=`.</li>
+  </ol>
+</section>
+
+<section class="section shell quick-start" id="quick-start">
+  <div class="section-heading">
+    <p class="eyebrow">Quick start</p>
+    <h2>A minimal local profile and selected client URL.</h2>
+  </div>
+  <div class="quick-start__grid">
+    <CodeBlock label="Install, validate, and start" code={quickStart} />
+    <CodeBlock label="Minimal profile shape" code={minimalProfile} />
+  </div>
+  <p>
+    Connect a client with the exact tool selector
+    <code>http://127.0.0.1:8765/mcp?tools=context7__resolve-library-id,context7__query-docs</code>.
+    See <a href="/docs/getting-started/">Getting started</a> for the full path.
+  </p>
+</section>
+
+<section class="section shell stack" id="compatibility">
+  <div class="section-heading">
+    <p class="eyebrow">Compatibility and boundaries</p>
+    <h2>Validated narrowly, isolated by default.</h2>
+  </div>
+  <div class="boundary-grid">
+    <Callout title="Validated clients" headingLevel={3}>
+      <p>Hermes, Kilo/OpenCode, and Codex each completed one direct Streamable HTTP broker call. Claude Code was installed but unavailable because the local CLI was not authenticated.</p>
+    </Callout>
+    <Callout title="Upstream modes" headingLevel={3} tone="evidence">
+      <p>Context7 is qualified shared in the MVP profile. code-review-graph remains isolated because it retains context-bound state.</p>
+    </Callout>
+    <Callout title="Non-goals" headingLevel={3} tone="boundary">
+      <p>Irigate is not an enterprise gateway, identity layer, remote access service, Kubernetes control plane, compliance product, or model API proxy.</p>
+    </Callout>
+  </div>
+</section>
+
+<section class="section shell final-cta" id="faq">
+  <div>
+    <p class="eyebrow">Questions</p>
+    <h2>Check the visible FAQ before sharing a server.</h2>
+    <p>Start with <a href="/docs/faq/">the FAQ</a> for the sharing boundary, cloud-service answer, gateway comparison, and latency limitation.</p>
+  </div>
+  <a class="button" data-variant="primary" href="/docs/getting-started/">Read the docs</a>
+</section>

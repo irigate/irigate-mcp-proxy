@@ -1,0 +1,45 @@
+---
+import { getEntry, render } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const entry = await getEntry("pages", "benchmarks");
+if (!entry) {
+  throw new Error("Missing benchmarks page content entry");
+}
+
+const { Content } = await render(entry);
+---
+
+<BaseLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  seoDescription={entry.data.seoDescription}
+  path={entry.data.route.path}
+>
+  <article class="document reading section">
+    <Content />
+  </article>
+</BaseLayout>
+
+<style>
+  .document :global(h1) {
+    margin-bottom: var(--space-5);
+  }
+
+  .document :global(h2) {
+    margin-top: var(--space-7);
+  }
+
+  .document :global(p),
+  .document :global(ul),
+  .document :global(ol) {
+    color: var(--color-text-muted);
+  }
+
+  .document :global(table) {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    margin-top: var(--space-4);
+  }
+</style>

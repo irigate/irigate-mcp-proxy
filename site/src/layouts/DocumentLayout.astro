@@ -4,13 +4,15 @@ import BaseLayout from "./BaseLayout.astro";
 export interface Props {
   title: string;
   description: string;
+  seoDescription?: string;
+  path?: string;
   eyebrow?: string;
 }
 
-const { title, description, eyebrow = "Documentation" } = Astro.props;
+const { title, description, seoDescription, path, eyebrow = "Documentation" } = Astro.props;
 ---
 
-<BaseLayout title={title} description={description}>
+<BaseLayout title={title} description={description} seoDescription={seoDescription} path={path}>
   <article class="document reading section">
     <header class="document__header">
       <p class="eyebrow">{eyebrow}</p>

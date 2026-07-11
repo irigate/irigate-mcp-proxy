@@ -2,13 +2,15 @@
 export interface Props {
   tone?: "note" | "evidence" | "boundary";
   title: string;
+  headingLevel?: 2 | 3 | 4;
 }
 
-const { tone = "note", title } = Astro.props;
+const { tone = "note", title, headingLevel = 2 } = Astro.props;
+const Heading = `h${headingLevel}` as const;
 ---
 
 <aside class:list={["callout", `callout--${tone}`]}>
-  <h2>{title}</h2>
+  <Heading>{title}</Heading>
   <div class="callout__body">
     <slot />
   </div>
@@ -26,7 +28,7 @@ const { tone = "note", title } = Astro.props;
     border-color: var(--color-danger);
   }
 
-  .callout h2 {
+  .callout :is(h2, h3, h4) {
     font-family: var(--font-body);
     font-size: 1rem;
     line-height: 1.3;

@@ -268,9 +268,10 @@ Content schemas must require unique title, description, and SEO description fiel
 | --- | --- | --- |
 | Phase 0 — confirm open deployment inputs | Gated | Required before Phases 8 and 10; does not block local implementation. |
 | Phase 1 — establish the site boundary and tooling | Done | Committed as `88e67d6`. |
-| Phase 2 — implement design tokens and shared layouts | Done | Verification passed; commit checkpoint pending. |
-| Phase 3 — implement typed Markdown/MDX content | Todo | Start after the Phase 2 commit. |
-| Phases 4–10 | Todo | Start only after the preceding phase commit. |
+| Phase 2 — implement design tokens and shared layouts | Done | Committed as `9346051`. |
+| Phase 3 — implement typed Markdown/MDX content | Done | Verification passed; commit checkpoint pending. |
+| Phase 4 — add SEO assets and generated crawler files | Todo | Start after the Phase 3 commit. |
+| Phases 5–10 | Todo | Start only after the preceding phase commit. |
 
 ### Phase 0 — confirm open deployment inputs (gate, not a build phase)
 
@@ -360,7 +361,7 @@ Verification:
 
 Files:
 
-- `site/src/content/config.ts`
+- `site/src/content.config.ts` (Astro 7's content-collection entry point)
 - Markdown/MDX files listed under “Page content and acceptance criteria.”
 - `site/src/pages/docs/[...slug].astro`
 - the `site/src/pages/index.astro` and `site/src/pages/benchmarks.astro` route files, each rendering the corresponding MDX entry.

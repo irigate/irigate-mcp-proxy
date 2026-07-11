@@ -7,6 +7,7 @@ Static Astro website for `https://irigate.io`, including product pages, public d
 ## Ownership
 
 - `src/content/` owns substantive public product and documentation copy.
+- `src/content.config.ts` owns Astro content collection loaders and frontmatter schemas for `src/content/`.
 - Astro pages, layouts, components, and styles own routing and presentation.
 - `public/` owns files copied directly into the deployed site.
 - `scripts/` owns website-specific generation and built-output verification.
