@@ -1,0 +1,51 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+
+export interface Props {
+  title: string;
+  description: string;
+  eyebrow?: string;
+}
+
+const { title, description, eyebrow = "Documentation" } = Astro.props;
+---
+
+<BaseLayout title={title} description={description}>
+  <article class="document reading section">
+    <header class="document__header">
+      <p class="eyebrow">{eyebrow}</p>
+      <h1>{title}</h1>
+      <p class="lede">{description}</p>
+    </header>
+    <div class="document__body">
+      <slot />
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  .document__header {
+    display: grid;
+    gap: var(--space-4);
+    margin-bottom: var(--space-7);
+  }
+
+  .document__body :global(h2) {
+    margin-top: var(--space-7);
+  }
+
+  .document__body :global(h3) {
+    margin-top: var(--space-5);
+  }
+
+  .document__body :global(p),
+  .document__body :global(ul),
+  .document__body :global(ol) {
+    color: var(--color-text-muted);
+  }
+
+  .document__body :global(ul),
+  .document__body :global(ol) {
+    padding-left: var(--space-5);
+  }
+</style>

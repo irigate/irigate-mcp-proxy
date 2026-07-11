@@ -19,6 +19,7 @@ Static Astro website for `https://irigate.io`, including product pages, public d
 - Hand-synchronize affected website content in the same change as changes to root behavior or evidence documents. Do not parse root Markdown at build time.
 - Use Markdown for prose-heavy documentation and MDX only where reusable Astro components are needed.
 - Use framework-free JavaScript only for concrete interactions such as theme preference and command copying.
+- The theme preference key is `irigate.theme`; store only `light`, `dark`, or `system`, and apply the effective `light|dark` value as `data-theme` on the root element.
 - Keep `site/dist/`, `site/.astro/`, and `site/node_modules/` generated and untracked.
 - Keep dependency install scripts denied unless explicitly approved in `pnpm-workspace.yaml`; esbuild is the reviewed baseline exception required by Astro.
 - Bind development and preview servers to loopback unless an operator explicitly chooses otherwise.

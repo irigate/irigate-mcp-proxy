@@ -267,9 +267,10 @@ Content schemas must require unique title, description, and SEO description fiel
 | Phase | Status | Checkpoint |
 | --- | --- | --- |
 | Phase 0 — confirm open deployment inputs | Gated | Required before Phases 8 and 10; does not block local implementation. |
-| Phase 1 — establish the site boundary and tooling | Done | Verification passed; commit checkpoint pending. |
-| Phase 2 — implement design tokens and shared layouts | Todo | Start after the Phase 1 commit. |
-| Phases 3–10 | Todo | Start only after the preceding phase commit. |
+| Phase 1 — establish the site boundary and tooling | Done | Committed as `88e67d6`. |
+| Phase 2 — implement design tokens and shared layouts | Done | Verification passed; commit checkpoint pending. |
+| Phase 3 — implement typed Markdown/MDX content | Todo | Start after the Phase 2 commit. |
+| Phases 4–10 | Todo | Start only after the preceding phase commit. |
 
 ### Phase 0 — confirm open deployment inputs (gate, not a build phase)
 

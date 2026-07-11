@@ -1,0 +1,109 @@
+<div class="theme-switcher" role="group" aria-label="Color theme">
+  <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+  <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+  <button type="button" data-theme-choice="system" aria-pressed="true">System</button>
+</div>
+
+<script is:inline>
+  (() => {
+    const key = "irigate.theme";
+    const values = new Set(["light", "dark", "system"]);
+    const root = document.documentElement;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const readPreference = () => {
+      try {
+        const stored = window.localStorage.getItem(key);
+        return values.has(stored) ? stored : "system";
+      } catch {
+        return "system";
+      }
+    };
+
+    const writePreference = (value) => {
+      try {
+        window.localStorage.setItem(key, value);
+      } catch {
+        /* Storage can be denied; the current page still updates. */
+      }
+    };
+
+    const effectiveTheme = (preference) => {
+      return preference === "system" ? (media.matches ? "dark" : "light") : preference;
+    };
+
+    const applyPreference = (preference) => {
+      root.dataset.themePreference = preference;
+      root.dataset.theme = effectiveTheme(preference);
+      document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.themeChoice === preference));
+      });
+    };
+
+    let preference = readPreference();
+    applyPreference(preference);
+
+    document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const next = button.dataset.themeChoice;
+        if (!values.has(next)) return;
+        preference = next;
+        writePreference(preference);
+        applyPreference(preference);
+      });
+    });
+
+    media.addEventListener("change", () => {
+      if (preference === "system") {
+        applyPreference(preference);
+      }
+    });
+  })();
+</script>
+
+<style>
+  .theme-switcher {
+    display: inline-grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-2);
+    background: var(--color-surface);
+  }
+
+  .theme-switcher button {
+    min-width: 4.75rem;
+    min-height: 2.4rem;
+    border: 0;
+    border-right: 1px solid var(--color-border);
+    padding: 0 var(--space-3);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+
+  .theme-switcher button:last-child {
+    border-right: 0;
+  }
+
+  .theme-switcher button[aria-pressed="true"] {
+    background: var(--color-accent-soft);
+    color: var(--color-text);
+  }
+
+  .theme-switcher button:hover {
+    color: var(--color-text);
+  }
+
+  @media (max-width: 34rem) {
+    .theme-switcher {
+      width: 100%;
+    }
+
+    .theme-switcher button {
+      min-width: 0;
+    }
+  }
+</style>
