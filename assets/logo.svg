@@ -28,9 +28,9 @@
   </g>
   <defs>
     <clipPath id="irigate-word-band">
-      <text x="384" y="214" font-family="Georgia, 'Times New Roman', serif" font-size="168" font-weight="700" letter-spacing="12">IRIGATE</text>
+      <rect x="380" y="180" width="1100" height="30"/>
     </clipPath>
   </defs>
   <text x="384" y="214" font-family="Georgia, 'Times New Roman', serif" font-size="168" font-weight="700" letter-spacing="12" fill="#ffc72c">IRIGATE</text>
-  <rect x="380" y="180" width="1100" height="30" fill="#f9a23a" clip-path="url(#irigate-word-band)"/>
+  <text x="384" y="214" font-family="Georgia, 'Times New Roman', serif" font-size="168" font-weight="700" letter-spacing="12" fill="#f9a23a" clip-path="url(#irigate-word-band)">IRIGATE</text>
 </svg>

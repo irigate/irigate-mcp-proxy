@@ -58,6 +58,11 @@ def glyph(*, x: int, y: int, clip_id: str) -> str:
 
 def render_lockup() -> str:
     mark = glyph(x=64, y=30, clip_id="irigate-glyph-band")
+    wordmark = (
+        f'  <text x="{WORDMARK_X}" y="{WORDMARK_BASELINE}" '
+        f'font-family="Georgia, \'Times New Roman\', serif" font-size="{WORDMARK_FONT}" '
+        f'font-weight="700" letter-spacing="12"'
+    )
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {LOCKUP_W} {LOCKUP_H}" '
         'role="img" aria-labelledby="title desc">\n'
@@ -66,16 +71,13 @@ def render_lockup() -> str:
         f"{mark}\n"
         "  <defs>\n"
         '    <clipPath id="irigate-word-band">\n'
-        f'      <text x="{WORDMARK_X}" y="{WORDMARK_BASELINE}" '
-        f'font-family="Georgia, \'Times New Roman\', serif" font-size="{WORDMARK_FONT}" '
-        f'font-weight="700" letter-spacing="12">{WORDMARK}</text>\n'
+        f'      <rect x="{WORDMARK_X - 4}" y="{30 + BAND_TOP}" width="1100" '
+        f'height="{BAND_HEIGHT}"/>\n'
         "    </clipPath>\n"
         "  </defs>\n"
-        f'  <text x="{WORDMARK_X}" y="{WORDMARK_BASELINE}" '
-        f'font-family="Georgia, \'Times New Roman\', serif" font-size="{WORDMARK_FONT}" '
-        f'font-weight="700" letter-spacing="12" fill="{GOLD}">{WORDMARK}</text>\n'
-        f'  <rect x="{WORDMARK_X - 4}" y="{30 + BAND_TOP}" width="1100" '
-        f'height="{BAND_HEIGHT}" fill="{AMBER}" clip-path="url(#irigate-word-band)"/>\n'
+        f'{wordmark} fill="{GOLD}">{WORDMARK}</text>\n'
+        f'{wordmark} fill="{AMBER}" '
+        f'clip-path="url(#irigate-word-band)">{WORDMARK}</text>\n'
         "</svg>\n"
     )
 
