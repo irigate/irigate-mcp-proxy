@@ -270,9 +270,10 @@ Content schemas must require unique title, description, and SEO description fiel
 | Phase 1 — establish the site boundary and tooling | Done | Committed as `88e67d6`. |
 | Phase 2 — implement design tokens and shared layouts | Done | Committed as `9346051`. |
 | Phase 3 — implement typed Markdown/MDX content | Done | Committed as `9833c20`. |
-| Phase 4 — add SEO assets and generated crawler files | Done | Verification passed; commit checkpoint pending. |
-| Phase 5 — add deterministic built-site verification | Todo | Start after the Phase 4 commit. |
-| Phases 6–10 | Todo | Start only after the preceding phase commit. |
+| Phase 4 — add SEO assets and generated crawler files | Done | Committed as `5cbe7bd`. |
+| Phase 5 — add deterministic built-site verification | Done | Verification passed; commit checkpoint pending. |
+| Phase 6 — add pull-request and push validation workflow | Todo | Start after the Phase 5 commit. |
+| Phases 7–10 | Todo | Start only after the preceding phase commit. |
 
 ### Phase 0 — confirm open deployment inputs (gate, not a build phase)
 
@@ -415,7 +416,7 @@ Checks against `site/dist/`:
 
 - Read `site/package.json`'s `packageManager` field and assert the lockfile header (`lockfileVersion` and the `pnpm` line if present) matches the expected format. Catch the most common lockfile-regeneration drift before the GitHub workflow catches it.
 - Required routes and files exist.
-- `CNAME`, favicon, robots, sitemap, `llms.txt`, and social image exist.
+- Favicon, robots, sitemap, `llms.txt`, and social image exist. Validate `CNAME` exactly when present; Phase 8 makes it required after the custom-domain gate is satisfied.
 - Every HTML page has exactly one title, canonical URL, description, and H1.
 - No built canonical URL contains `/irigate-mcp-proxy/`.
 - No page contains `noindex`.

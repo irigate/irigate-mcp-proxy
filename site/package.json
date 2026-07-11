@@ -12,7 +12,7 @@
     "build": "astro build",
     "preview": "astro preview --host 127.0.0.1",
     "check:types": "astro check",
-    "verify": "pnpm check:types && pnpm build"
+    "verify": "pnpm check:types && pnpm build && node scripts/verify-built-site.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^7.0.2",

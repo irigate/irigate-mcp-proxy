@@ -38,8 +38,7 @@ Static Astro website for `https://irigate.io`, including product pages, public d
 ## Verification
 
 - Run `corepack pnpm install --frozen-lockfile` from `site/`.
-- Run `corepack pnpm check:types` and `corepack pnpm build` from `site/`.
-- Run `corepack pnpm verify` once deterministic built-site assertions exist.
+- Run `corepack pnpm verify` from `site/`; it performs Astro type checking, production build, and deterministic built-site assertions.
 - Preview with `corepack pnpm preview --host 127.0.0.1`.
 
 ## Child DOX Index
