@@ -23,6 +23,24 @@ async def test_downstream_initialize_and_list_tools() -> None:
     assert [tool.name for tool in tools.tools] == ["echo__repeat", "echo__terminate"]
 
 
+async def test_omitted_selector_exposes_all_configured_upstreams() -> None:
+    async with running_broker(
+        {"echo": upstream(), "other": upstream()}, selector="upstreams=echo"
+    ) as selected_url:
+        url = selected_url.split("?", maxsplit=1)[0]
+        async with streamable_http_client(url) as streams:
+            async with ClientSession(streams[0], streams[1]) as session:
+                await session.initialize()
+                tools = await session.list_tools()
+
+    assert [tool.name for tool in tools.tools] == [
+        "echo__repeat",
+        "echo__terminate",
+        "other__repeat",
+        "other__terminate",
+    ]
+
+
 async def test_origin_policy_rejects_remote_and_malformed_origins() -> None:
     async with running_broker({"echo": upstream()}, selector="upstreams=echo") as url:
         payload = {
@@ -55,7 +73,6 @@ async def test_origin_policy_rejects_remote_and_malformed_origins() -> None:
 @pytest.mark.parametrize(
     ("query", "message"),
     [
-        ("", "exactly one selector"),
         ("tools=echo__repeat&upstreams=echo", "exactly one selector"),
         ("tools=echo__repeat&tools=echo__terminate", "repeated selector"),
         ("upstreams=echo&extra=value", "unsupported query parameter"),

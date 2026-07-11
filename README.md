@@ -106,7 +106,7 @@ upstreams:
 
 | Field | Required | Default | Contract |
 | --- | --- | --- | --- |
-| `name` | Yes | — | Profile identifier using lowercase letters, digits, and hyphens. |
+| `name` | Yes | — | Profile identifier using lowercase letters, digits, and hyphens. It labels `--check` output and runtime reports so operators can distinguish configurations; it does not affect routing. |
 | `host` | No | `127.0.0.1` | Listener address. Only `localhost` or an IP loopback address is accepted. |
 | `port` | No | `8765` | Streamable HTTP listener port, from 1 through 65535. |
 | `runtime_report_path` | No | Disabled | JSON report destination. The file is refreshed atomically and contains metadata only. |
@@ -151,7 +151,7 @@ uv run --frozen irigate \
   --require-qualified-sharing
 ```
 
-The broker listens at `http://127.0.0.1:8765/mcp` without starting upstreams. Every MCP client URL must select tools or upstreams explicitly. Qualification, schema discovery, and process startup happen on first selected use. Each upstream's `idle_timeout_seconds` shuts down that process independently after inactivity; the next routed call starts a fresh process without changing the downstream session.
+The broker listens at `http://127.0.0.1:8765/mcp` without starting upstreams. A client may use the bare URL to expose all configured upstreams, or add a selector to narrow the set. Qualification, schema discovery, and process startup happen on first use. Each upstream's `idle_timeout_seconds` shuts down that process independently after inactivity; the next routed call starts a fresh process without changing the downstream session.
 
 ### Agent-side selection
 
@@ -179,7 +179,7 @@ Positive and reverse selectors may be mixed. Positive names form the base set an
 http://127.0.0.1:8765/mcp?upstreams=context7,code-review-graph,!code-review-graph
 ```
 
-This selects only `context7`. Reverse-only selection starts from all currently configured upstreams, so profile reloads can broaden it when a new upstream is added. Prefer `tools=` for least privilege. Exactly one `tools` or `upstreams` parameter is required; repeated parameters, unknown names, malformed tokens, unrelated query parameters, and an empty result are rejected. Exact tool selection never supports `!` because excluding one tool cannot avoid starting its upstream.
+This selects only `context7`. Omitting both selector parameters exposes all configured upstreams unchanged. Reverse-only selection also starts from all currently configured upstreams, so profile reloads can broaden it when a new upstream is added. Prefer `tools=` for least privilege. When selection is used, provide only one `tools` or `upstreams` parameter; repeated parameters, unknown names, malformed tokens, unrelated query parameters, and an empty result are rejected. Exact tool selection never supports `!` because excluding one tool cannot avoid starting its upstream.
 
 An agent can combine Irigate with a directly managed MCP server:
 

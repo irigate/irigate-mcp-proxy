@@ -13,7 +13,7 @@ Let each downstream MCP agent explicitly select which Irigate upstreams or exact
 | 3. Defer upstream activation and filter tool exposure | Done | Committed checkpoint |
 | 4. Make reload selection-aware | Done | Committed checkpoint |
 | 5. Update user and implementation documentation | Done | Committed checkpoint |
-| 6. Full verification and graph review | Todo | Requires Phase 5 commit |
+| 6. Full verification and graph review | Done | Committed checkpoint |
 
 ## Current context and assumptions
 
@@ -24,7 +24,7 @@ Let each downstream MCP agent explicitly select which Irigate upstreams or exact
 - Upstream processes may still be shared across compatible downstream sessions after qualification. Selection limits exposure and activation; it does not create a separate broker per agent.
 - The selector is carried in the configured MCP URL, so every request made by that client includes it. No MCP protocol extension or client-specific initialization capability is required.
 - Selector values contain routing names only. Credentials remain prohibited in URLs.
-- This is an intentionally breaking endpoint contract: a client must provide exactly one selector. There is no implicit “all upstreams” compatibility mode.
+- Selection is optional. A client that omits it receives all configured upstreams; a client that narrows exposure provides one selector.
 - Named groups such as `@development` are out of scope. They would require another configuration contract and are not needed for deterministic positive/reverse selection.
 
 ## Proposed endpoint contract
@@ -72,7 +72,7 @@ Reverse-only selection is convenient when an agent initializes selected MCP serv
 
 ### Request validation
 
-- Exactly one of `tools` or `upstreams` is required.
+- At most one of `tools` or `upstreams` is accepted. Omitting both selects all configured upstreams.
 - Repeated selector parameters, both parameters together, empty values/tokens, malformed names, and unrelated query parameters are rejected with HTTP 400 before MCP dispatch.
 - Selection is normalized into an immutable typed value. Runtime code must not pass raw query strings or untyped mappings.
 - The same normalized selection must be used for `tools/list` and `tools/call` on every request.
@@ -144,7 +144,7 @@ Steps:
 4. Extend `_StreamableHTTPApp` to parse and validate each HTTP request query before delegating to `StreamableHTTPSessionManager`.
 5. Return a bounded, credential-free HTTP 400 error for invalid selectors. Error text may contain upstream/tool names but not request headers or the full URL.
 6. Update the MCP handlers to require the current normalized selection and pass it to broker list/call APIs.
-7. Update existing test helpers and transport tests to use an explicit selector; do not add an implicit test default that hides the new production requirement.
+7. Keep selected test URLs explicit and add transport coverage proving that a bare URL exposes all configured upstreams.
 8. Run:
 
    ```bash
@@ -252,7 +252,7 @@ README changes:
    - reverse-only selection for an MCP started directly by the agent;
    - mixed positive/reverse selection and exclusion-wins semantics.
 3. Include a concrete agent configuration showing Irigate alongside a directly initialized `code-review-graph` server.
-4. Document that exactly one selector is mandatory and that no implicit-all compatibility path exists.
+4. Document that selectors are optional, omission exposes all configured upstreams, and selected requests use only one mode.
 5. Add a compact validation table covering invalid combinations and unknown names.
 6. Warn that reverse-only selection automatically admits newly configured upstreams after reload; recommend `tools=` when least privilege matters.
 7. Correct startup wording: Irigate no longer starts all configured upstreams at broker launch; selected upstreams activate on demand.
@@ -355,7 +355,7 @@ Steps:
 
 The implementation is complete only when all of the following are proven:
 
-- A request without exactly one selector fails before MCP dispatch.
+- A request without a selector exposes all configured upstreams; a request with both selector modes fails before MCP dispatch.
 - Exact `tools=` starts only referenced upstreams and exposes only requested tools.
 - Positive `upstreams=` starts only the named upstreams.
 - Reverse-only selection starts all configured upstreams except exclusions.

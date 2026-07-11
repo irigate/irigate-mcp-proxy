@@ -23,7 +23,7 @@ Executable contracts for Irigate configuration, background reload, transport, ro
 - Keep tests deterministic and loopback-only.
 - Prefer public package APIs and CLI subprocesses over private implementation details.
 - Use explicit test data; never copy values from the operator environment.
-- Pass agent selectors explicitly to broker test helpers; do not hide the required endpoint contract behind a default.
+- Pass selectors explicitly when a test exercises narrowed exposure, and cover the bare-URL default-all contract separately.
 
 ## Verification
 

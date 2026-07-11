@@ -40,12 +40,19 @@ def parse_selection(
     """Parse one decoded query-string selector against configured upstream keys."""
 
     items = tuple(query_items)
+    configured = frozenset(configured_upstreams)
     unsupported = sorted({name for name, _ in items if name not in _SELECTOR_NAMES})
     if unsupported:
         raise SelectionError("unsupported query parameter: " + ", ".join(unsupported))
 
     selector_items = [(name, value) for name, value in items if name in _SELECTOR_NAMES]
     selected_names = {name for name, _ in selector_items}
+    if not selector_items:
+        return UpstreamSelection(
+            included=configured,
+            excluded=frozenset(),
+            upstreams=configured,
+        )
     if len(selected_names) != 1:
         raise SelectionError("exactly one selector parameter is required")
     if len(selector_items) != 1:
@@ -58,7 +65,6 @@ def parse_selection(
     if any(not token for token in tokens):
         raise SelectionError("empty selector token is not allowed")
 
-    configured = frozenset(configured_upstreams)
     if name == "tools":
         return _parse_tools(tokens, configured)
     return _parse_upstreams(tokens, configured)

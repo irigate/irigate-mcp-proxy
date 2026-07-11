@@ -86,7 +86,7 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 - **Local MCP broker scope.** Irigate validates loopback-only sharing of explicitly approved stdio MCP upstreams. It is not an enterprise governance, compliance, multi-tenant, or general model-API gateway.
 - **Local HTTP origin enforcement.** Streamable HTTP requests must reject malformed and non-loopback `Origin` headers to prevent DNS rebinding. The no-Origin behavior for non-browser local clients must be explicit and proven by the transport spike.
 - **No request-delivered credentials.** Credentials must never be accepted through URLs, query parameters, command arguments, logs, or committed profiles. Runtime configuration may reference broker-process environment variables without exposing their values.
-- **Explicit agent selection.** Every downstream MCP URL selects exact tools or upstreams. Irigate activates only the selected set; reverse-only selection intentionally follows future profile additions and is not least privilege.
+- **Optional agent selection.** A bare downstream MCP URL exposes all configured upstreams. Explicit tool or upstream selectors narrow that set; reverse-only selection intentionally follows future profile additions and is not least privilege.
 
 ## Session-start tooling
 

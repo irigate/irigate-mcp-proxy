@@ -36,7 +36,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Arguments, results, environment values, commands, and credentials never enter audit records.
 - Reload prepares changed active upstreams before routing switches, keeps added and changed dormant upstreams unstarted, preserves the last valid active configuration on failure, and never replaces downstream HTTP sessions.
 - Runtime `host` and `port` changes are rejected; they require replacing the listener.
-- Agent selectors use exactly one explicit `tools` or `upstreams` mode; upstream exclusions override inclusions and unknown names fail closed.
+- A request without a selector uses all configured upstreams. A selected request uses one `tools` or `upstreams` mode; upstream exclusions override inclusions and unknown names fail closed.
 - Qualification, schema discovery, and process startup occur only when an agent first selects an upstream; concurrent first selection is single-flight per upstream.
 - Exact tool selectors filter `tools/list` and dispatch; process-wide activation by another agent never broadens a request's selection.
 

@@ -55,6 +55,16 @@ def test_parses_positive_upstream_selection() -> None:
     )
 
 
+def test_missing_selector_selects_all_configured_upstreams() -> None:
+    selection = parse()
+
+    assert selection == UpstreamSelection(
+        included=frozenset(UPSTREAMS),
+        excluded=frozenset(),
+        upstreams=frozenset(UPSTREAMS),
+    )
+
+
 def test_reverse_only_selection_uses_all_upstreams_as_base() -> None:
     selection = parse(("upstreams", "!code-review-graph,!documentdb"))
 
@@ -93,7 +103,6 @@ def test_normalizes_duplicate_upstream_tokens() -> None:
 @pytest.mark.parametrize(
     ("items", "message"),
     [
-        ((), "exactly one selector"),
         (
             (("tools", "context7__query-docs"), ("upstreams", "context7")),
             "exactly one selector",

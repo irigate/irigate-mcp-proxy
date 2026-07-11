@@ -76,7 +76,7 @@ Context7 is the qualified shared upstream in `profiles/mvp.yaml`. Its qualifier 
 
 Exposed tools use `<upstream-key>__<tool-name>`. Listing and dispatch use the same exact namespace. Unknown prefixes and unknown tool names are rejected; routing never uses first-match behavior.
 
-Every downstream URL supplies exactly one selector:
+Every downstream URL may omit selection to expose all configured upstreams unchanged, or supply one selector:
 
 - `tools=a__x,b__y` activates only referenced upstreams and exposes only the exact tools.
 - `upstreams=a,b` exposes every tool from the positive set.
@@ -163,4 +163,4 @@ uv run --frozen python scripts/compatibility.py --config profiles/mvp.yaml
 uv run --frozen python scripts/benchmark.py --config profiles/benchmark-heavy.yaml --clients 1,5,20 --repetitions 3
 ```
 
-The full test suite must prove mandatory selection, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output.
+The full test suite must prove default-all behavior, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output.
