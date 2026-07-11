@@ -97,6 +97,7 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 - `assets/AGENTS.md` — Reproducible project brand assets and Iris-gate design contract.
 - `profiles/AGENTS.md` — Validated static runtime and benchmark profiles.
 - `scripts/AGENTS.md` — Repeatable production compatibility and benchmark evidence harnesses.
+- `site/AGENTS.md` — Static Astro website, public content, and local website verification contracts.
 - `spikes/AGENTS.md` — Disposable transport, sharing, failure, and client-compatibility evidence.
 - `src/AGENTS.md` — Production package source and module contracts.
 - `tests/AGENTS.md` — Executable behavioral and process-lifecycle contracts.

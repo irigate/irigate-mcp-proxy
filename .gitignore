@@ -4,6 +4,9 @@
 **/__pycache__/
 .irigate/
 dist/
+site/node_modules/
+site/dist/
+site/.astro/
 *.egg-info/
 spikes/**/.venv/
 spikes/**/uv.lock
