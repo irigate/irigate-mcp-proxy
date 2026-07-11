@@ -20,6 +20,7 @@ const htmlRoutes = [
 ].map((entry) => ({ ...entry, canonical: entry.canonical ?? `${siteOrigin}${entry.route}` }));
 
 const requiredFiles = [
+  "CNAME",
   "favicon.svg",
   "logo.svg",
   "logo-mark.svg",
@@ -174,12 +175,9 @@ async function verifyRequiredFiles() {
   for (const route of htmlRoutes) assertExists(route.file);
   for (const file of requiredFiles) assertExists(file);
 
-  const cnamePath = path.join(distDir, "CNAME");
-  if (existsSync(cnamePath)) {
-    const cname = await readText(cnamePath);
-    if (cname !== "irigate.io\n") {
-      fail("CNAME must be exactly 'irigate.io\\n' when present");
-    }
+  const cname = await readText(path.join(distDir, "CNAME"));
+  if (cname !== "irigate.io\n") {
+    fail("CNAME must be exactly 'irigate.io\\n'");
   }
 
   const ogImage = await readFile(path.join(distDir, "og-default.png"));

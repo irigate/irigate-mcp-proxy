@@ -21,7 +21,7 @@ Cutover is authorized by the resolved rows below. Recheck every operational fact
 - [`site/package.json`](site/package.json) requires Node 24, pins `pnpm@11.8.0`, and defines `pnpm verify` as type check, production build, and built-output assertions.
 - [`site/scripts/verify-built-site.mjs`](site/scripts/verify-built-site.mjs) validates required routes, metadata, generated crawler files, image dimensions, no repository-base URLs, and that `llms.txt` does not reference this guide.
 - GitHub repository Settings -> Pages is authoritative for Pages source, custom domain, and HTTPS enforcement.
-- Phase 8 may add `site/public/CNAME` containing exactly `irigate.io\n` after the authorization gate is resolved. It is intentionally absent during Phase 9; GitHub documents that Actions-based Pages publishing ignores an existing `CNAME` file.
+- `site/public/CNAME` contains exactly `irigate.io\n` and records repository intent. GitHub documents that Actions-based Pages publishing ignores this file; Pages settings and DNS remain authoritative.
 
 ## Prerequisites
 
