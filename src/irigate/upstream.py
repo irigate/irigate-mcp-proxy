@@ -37,12 +37,14 @@ class UpstreamWorker:
         environment: dict[str, str],
         event_sink: Callable[[str, float], None] | None = None,
         idle_sink: Callable[[UpstreamWorker], None] | None = None,
+        activity_sink: Callable[[str], None] | None = None,
     ) -> None:
         self.key = key
         self.config = config
         self.environment = environment
         self._event_sink = event_sink
         self._idle_sink = idle_sink
+        self._activity_sink = activity_sink
         self.tools: tuple[types.Tool, ...] = ()
         self._queue: asyncio.Queue[_Call | None] = asyncio.Queue()
         self._ready: asyncio.Future[tuple[types.Tool, ...]] | None = None
@@ -135,6 +137,8 @@ class UpstreamWorker:
 
     async def _execute_call(self, session: ClientSession, request: _Call) -> None:
         self._active_results.add(request.result)
+        if self._activity_sink is not None:
+            self._activity_sink("started")
         if self._event_sink is not None:
             self._event_sink("queue_duration", time.monotonic() - request.enqueued_at)
         try:
@@ -151,6 +155,8 @@ class UpstreamWorker:
                 request.result.set_result(result)
         finally:
             self._active_results.discard(request.result)
+            if self._activity_sink is not None:
+                self._activity_sink("finished")
 
     async def call_tool(
         self, tool: str, arguments: dict[str, Any]

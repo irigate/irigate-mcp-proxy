@@ -88,7 +88,7 @@ Unknown positive or reverse names, repeated parameters, malformed tokens, unrela
 
 ## Evidence boundaries
 
-Audit records contain timestamp, upstream key, tool name, duration, and outcome. Runtime report schema version 2 contains modes, qualification state, live instances, counts, durations, failures, crashes, reuse, avoided-instance evidence, and per-agent call/failure counts by upstream.
+Audit records contain timestamp, upstream key, tool name, duration, and outcome. Runtime report schema version 3 contains modes, qualification state, live instances, busy/idle/stopped state, active-call count, UTC idle start, configured idle timeout, counts, durations, failures, crashes, reuse, avoided-instance evidence, and per-agent call/failure counts by upstream.
 
 Neither surface may contain arguments, results, environment values, commands, authorization headers, credentials, or hashes of low-entropy secrets. Runtime reports may claim consolidation only when multiple logical clients reused a qualified worker.
 
@@ -173,4 +173,4 @@ The full test suite must prove default-all behavior, selected-only activation, e
 
 `irigate call --config <profile> <upstream>__<tool> [--arguments <JSON-object>]` invokes one namespaced tool without opening the HTTP listener. It writes the complete MCP result as JSON, maps successful/tool-error results to exit codes `0`/`1`, rejects malformed or non-object arguments with exit code `2`, and closes the selected worker before exiting. Credentials remain broker-process environment values and must not be supplied in tool arguments.
 
-`irigate ps --config <profile> [--json]` reads the configured runtime report without resolving upstream environment references or starting processes. The table emits one upstream/agent row with effective mode, live instances, calls, and failures; JSON mode preserves the complete snapshot. Process liveness reflects the latest atomic write, while usage counters cover only the broker run represented by that report.
+`irigate ps --config <profile> [--json]` reads the configured runtime report without resolving upstream environment references or starting processes. The table emits one upstream/agent row with effective mode, live instances, activity state, elapsed idle time, configured idle timeout, calls, and failures; JSON mode preserves the complete snapshot. Elapsed idle time is computed at read time from the UTC idle-start timestamp. Process liveness reflects the latest atomic write, while usage counters cover only the broker run represented by that report.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -64,7 +65,7 @@ async def test_multi_client_shared_run_reports_avoided_instances(tmp_path: Path)
     assert upstream_report["logical_bindings"] == 3
     assert upstream_report["spawns"] >= 1
     assert upstream_report["reuse_hits"] >= 2
-    assert report["schema_version"] == 2
+    assert report["schema_version"] == 3
     assert report["agents"] == {
         "client-a": {"context7": {"calls": 1, "failures": 0}},
         "client-b": {"context7": {"calls": 1, "failures": 0}},
@@ -92,6 +93,49 @@ async def test_agent_failure_is_counted_without_recording_payload(tmp_path: Path
     report = json.loads(report_text)
     assert report["agents"] == {"codex": {"echo": {"calls": 1, "failures": 1}}}
     assert "sentinel-agent-payload" not in report_text
+
+
+async def test_report_tracks_busy_idle_and_stopped_states(tmp_path: Path) -> None:
+    config = with_report(config_for(8765, {"echo": upstream()}), tmp_path / "report.json")
+    broker = Broker(config)
+    await broker.start()
+    call = asyncio.create_task(
+        broker.call_tool(
+            "echo__repeat",
+            {"value": "slow", "delay_seconds": 0.2},
+            "session",
+            agent="hermes",
+        )
+    )
+    try:
+        assert config.runtime_report_path is not None
+        busy = None
+        for _ in range(300):
+            await asyncio.sleep(0.01)
+            busy = json.loads(config.runtime_report_path.read_text())["upstreams"]["echo"]
+            if busy["activity_state"] == "busy":
+                break
+        assert busy is not None
+        assert busy["activity_state"] == "busy"
+        assert busy["active_calls"] == 1
+        assert busy["idle_since"] is None
+
+        result = await call
+        assert result.isError is False
+        idle = json.loads(config.runtime_report_path.read_text())["upstreams"]["echo"]
+        assert idle["activity_state"] == "idle"
+        assert idle["active_calls"] == 0
+        assert idle["idle_since"] is not None
+        assert idle["idle_timeout_seconds"] == 60
+    finally:
+        if not call.done():
+            call.cancel()
+            await asyncio.gather(call, return_exceptions=True)
+        await broker.close()
+
+    stopped = json.loads(config.runtime_report_path.read_text())["upstreams"]["echo"]
+    assert stopped["activity_state"] == "stopped"
+    assert stopped["idle_since"] is None
 
 
 async def test_isolated_run_never_claims_consolidation(tmp_path: Path) -> None:

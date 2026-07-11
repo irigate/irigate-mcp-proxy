@@ -68,7 +68,15 @@ class Broker:
             selected_environment[key],
             event_sink=lambda kind, seconds: self._runtime.duration(key, kind, seconds),
             idle_sink=lambda worker: self._idle_closed(key, worker),
+            activity_sink=lambda event: self._activity(key, event),
         )
+
+    def _activity(self, key: str, event: str) -> None:
+        if event == "started":
+            self._runtime.call_started(key)
+        else:
+            self._runtime.call_finished(key)
+        self._runtime.write()
 
     def _idle_closed(self, key: str, worker: UpstreamWorker) -> None:
         if self._shared.get(key) is worker:

@@ -5,6 +5,7 @@ import asyncio
 import json
 import sys
 from collections.abc import Sequence
+from datetime import datetime, timezone
 
 import uvicorn
 
@@ -90,6 +91,32 @@ def read_runtime_report(config: BrokerConfig) -> dict[str, object]:
     return report
 
 
+def format_duration(seconds: float) -> str:
+    total = max(0, int(seconds))
+    if total < 60:
+        return f"{total}s"
+    minutes, remainder = divmod(total, 60)
+    if minutes < 60:
+        return f"{minutes}m{remainder:02d}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h{minutes:02d}m"
+
+
+def idle_duration(raw_upstream: dict[object, object]) -> str:
+    if raw_upstream.get("activity_state") != "idle":
+        return "-"
+    idle_since = raw_upstream.get("idle_since")
+    if not isinstance(idle_since, str):
+        return "-"
+    try:
+        started = datetime.fromisoformat(idle_since)
+    except ValueError:
+        return "-"
+    if started.tzinfo is None:
+        return "-"
+    return format_duration((datetime.now(timezone.utc) - started).total_seconds())
+
+
 def format_process_report(report: dict[str, object]) -> str:
     upstreams = report.get("upstreams", {})
     agents = report.get("agents", {})
@@ -99,6 +126,14 @@ def format_process_report(report: dict[str, object]) -> str:
     for key, raw_upstream in upstreams.items():
         if not isinstance(raw_upstream, dict):
             continue
+        state = str(raw_upstream.get("activity_state", "unknown"))
+        idle_for = idle_duration(raw_upstream)
+        timeout = raw_upstream.get("idle_timeout_seconds")
+        idle_timeout = (
+            format_duration(float(timeout))
+            if isinstance(timeout, (int, float))
+            else "-"
+        )
         agent_rows = []
         for name, raw_agent in agents.items():
             if not isinstance(raw_agent, dict):
@@ -122,12 +157,25 @@ def format_process_report(report: dict[str, object]) -> str:
                     str(key),
                     str(raw_upstream.get("effective_mode", "unknown")),
                     str(raw_upstream.get("live_instances", 0)),
+                    state,
+                    idle_for,
+                    idle_timeout,
                     agent,
                     agent_calls,
                     agent_failures,
                 )
             )
-    headers = ("UPSTREAM", "MODE", "INSTANCES", "AGENT", "CALLS", "FAILURES")
+    headers = (
+        "UPSTREAM",
+        "MODE",
+        "INSTANCES",
+        "STATE",
+        "IDLE_FOR",
+        "IDLE_TIMEOUT",
+        "AGENT",
+        "CALLS",
+        "FAILURES",
+    )
     widths = [
         max(len(headers[index]), *(len(row[index]) for row in rows))
         if rows

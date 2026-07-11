@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,8 @@ class _UpstreamMetrics:
     call_duration: _Duration = field(default_factory=_Duration)
     failures: int = 0
     crashes: int = 0
+    active_calls: int = 0
+    idle_since: str | None = None
 
 
 @dataclass(slots=True)
@@ -93,10 +96,15 @@ class RuntimeMetrics:
         item.spawns += 1
         item.live_instances += 1
         item.startup_duration.add(seconds)
+        if item.active_calls == 0:
+            item.idle_since = self._now()
 
     def closed(self, key: str) -> None:
         item = self._upstreams[key]
         item.live_instances = max(0, item.live_instances - 1)
+        if item.live_instances == 0:
+            item.active_calls = 0
+            item.idle_since = None
 
     def reused(self, key: str) -> None:
         self._upstreams[key].reuse_hits += 1
@@ -116,6 +124,21 @@ class RuntimeMetrics:
 
     def agent_failed(self, agent: str, key: str) -> None:
         self._agents[agent][key].failures += 1
+
+    def call_started(self, key: str) -> None:
+        item = self._upstreams[key]
+        item.active_calls += 1
+        item.idle_since = None
+
+    def call_finished(self, key: str) -> None:
+        item = self._upstreams[key]
+        item.active_calls = max(0, item.active_calls - 1)
+        if item.active_calls == 0 and item.live_instances > 0:
+            item.idle_since = self._now()
+
+    @staticmethod
+    def _now() -> str:
+        return datetime.now(timezone.utc).isoformat()
 
     def snapshot(self) -> dict[str, Any]:
         upstreams: dict[str, Any] = {}
@@ -141,6 +164,18 @@ class RuntimeMetrics:
                 "call_duration": item.call_duration.snapshot(),
                 "failures": item.failures,
                 "crashes": item.crashes,
+                "activity_state": (
+                    "busy"
+                    if item.active_calls > 0
+                    else "idle"
+                    if item.live_instances > 0
+                    else "stopped"
+                ),
+                "active_calls": item.active_calls,
+                "idle_since": item.idle_since,
+                "idle_timeout_seconds": self.config.upstreams[
+                    key
+                ].idle_timeout_seconds,
             }
         if has_shared_evidence:
             evidence = "qualified"
@@ -149,7 +184,7 @@ class RuntimeMetrics:
         else:
             evidence = "isolated"
         return {
-            "schema_version": 2,
+            "schema_version": 3,
             "profile": self.config.name,
             "upstreams": upstreams,
             "agents": {

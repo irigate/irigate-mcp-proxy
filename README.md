@@ -17,7 +17,7 @@ Irigate is a loopback-only MCP broker. It lets local agent sessions share explic
 | **⎇** | **Exact namespaced routing**<br>Expose deterministic `<upstream>__<tool>` names and reject ambiguous or unknown routes. | **◎** | **Session isolation**<br>Scope non-shareable workers to downstream sessions so context-bound state never leaks across agents. |
 | **⚡** | **Explicit concurrency**<br>Choose serial or parallel execution per upstream, with independent queues and bounded call timeouts. | **◷** | **Bounded lifecycle**<br>Shut down each idle upstream on its configured timeout, restart it on demand, and terminate children without leaving orphans. |
 | **◇** | **Metadata-only observability**<br>Record outcomes, durations, reuse, failures, and process counts without payloads, commands, or credentials. | **⚖** | **Measured compatibility**<br>Run qualification, multi-client compatibility checks, and repeatable 1/5/20-client resource benchmarks. |
-| **⌘** | **Direct CLI tool calls**<br>Invoke one namespaced MCP tool from automation without starting the HTTP listener. | **▦** | **Process and usage inspection**<br>Use `irigate ps` to see live instances, effective modes, and per-agent call and failure counts. |
+| **⌘** | **Direct CLI tool calls**<br>Invoke one namespaced MCP tool from automation without starting the HTTP listener. | **▦** | **Process and usage inspection**<br>Use `irigate ps` to see live instances, busy/idle state, idle duration and timeout, and per-agent usage. |
 
 ## Problem hypothesis
 
@@ -243,7 +243,7 @@ uv run --frozen irigate ps --config profiles/mvp.yaml
 uv run --frozen irigate ps --config profiles/mvp.yaml --json
 ```
 
-Each table row identifies an upstream/agent pair and shows effective mode, live process count, calls, and failures. `--json` returns the complete report for automation. This command reads `runtime_report_path` without starting upstreams or resolving their environment references; it is a snapshot, so a report left by a stopped broker has zero live instances but retains cumulative usage from that run.
+Each table row identifies an upstream/agent pair and shows effective mode, live process count, activity state (`busy`, `idle`, or `stopped`), elapsed idle time, configured idle timeout, calls, and failures. `IDLE_FOR` is `-` while busy or stopped; while idle it is calculated from the report's UTC `idle_since` timestamp, so it continues advancing between report writes. `--json` returns the complete schema-version-3 report, including `activity_state`, `active_calls`, `idle_since`, and `idle_timeout_seconds`, for automation. This command reads `runtime_report_path` without starting upstreams or resolving their environment references; a report left by a stopped broker retains cumulative usage from that run.
 
 An agent can combine Irigate with a directly managed MCP server:
 
