@@ -181,6 +181,14 @@ http://127.0.0.1:8765/mcp?upstreams=context7,code-review-graph,!code-review-grap
 
 This selects only `context7`. Omitting both selector parameters exposes all configured upstreams unchanged. Reverse-only selection also starts from all currently configured upstreams, so profile reloads can broaden it when a new upstream is added. Prefer `tools=` for least privilege. When selection is used, provide only one `tools` or `upstreams` parameter; repeated parameters, unknown names, malformed tokens, unrelated query parameters, and an empty result are rejected. Exact tool selection never supports `!` because excluding one tool cannot avoid starting its upstream.
 
+List the exact namespaced tools available from a profile before configuring an agent:
+
+```bash
+uv run --frozen irigate tools --config profiles/mvp.yaml
+```
+
+The command prints one `<upstream>__<tool>` name per line so its output can be copied into `tools=`. Tool schemas are runtime metadata rather than static profile fields, so discovery temporarily starts and initializes every configured upstream, then closes all spawned processes. It may therefore download upstream packages, use the network, and require the profile's referenced environment variables. Use `--check` instead when only configuration validation without startup is needed.
+
 An agent can combine Irigate with a directly managed MCP server:
 
 ```yaml

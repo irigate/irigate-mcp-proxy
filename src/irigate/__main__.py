@@ -8,8 +8,11 @@ from collections.abc import Sequence
 import uvicorn
 
 from irigate.app import create_app
+from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import ConfigurationError, load_config
+from irigate.models import BrokerConfig
 from irigate.qualification import qualify_config
+from irigate.selection import parse_selection
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,7 +33,21 @@ def build_parser() -> argparse.ArgumentParser:
         "qualify", help="qualify requested sharing without serving clients"
     )
     qualify.add_argument("--config", required=True, help="YAML profile path")
+    tools = subcommands.add_parser(
+        "tools", help="start configured upstreams and list namespaced tools"
+    )
+    tools.add_argument("--config", required=True, help="YAML profile path")
     return parser
+
+
+async def list_configured_tools(config: BrokerConfig) -> list[str]:
+    broker = Broker(config)
+    await broker.start()
+    try:
+        selection = parse_selection((), config.upstreams)
+        return [tool.name for tool in await broker.list_tools(selection)]
+    finally:
+        await broker.close()
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -50,6 +67,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             status = "qualified" if result.admitted else "isolated"
             print(f"{key}={status}")
         return 0 if all(result.admitted for result in results.values()) else 1
+
+    if args.command == "tools":
+        try:
+            tool_names = asyncio.run(list_configured_tools(config))
+        except BrokerInitializationError as exc:
+            print(f"tool discovery error: {exc}", file=sys.stderr)
+            return 1
+        for tool_name in tool_names:
+            print(tool_name)
+        return 0
 
     if args.check:
         upstreams = ",".join(config.upstreams)

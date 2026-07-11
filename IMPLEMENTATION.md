@@ -102,7 +102,7 @@ Neither surface may contain arguments, results, environment values, commands, au
 - `src/irigate/qualification.py` — generic checks, qualifier registry, and sharing admission.
 - `src/irigate/runtime_report.py` — counters and atomic metadata-only snapshots.
 - `src/irigate/audit.py` — one metadata-only call record per outcome.
-- `src/irigate/__main__.py` — `--check`, `qualify`, and serving CLI contracts.
+- `src/irigate/__main__.py` — `--check`, runtime tool discovery, `qualify`, and serving CLI contracts.
 - `profiles/` — static runtime and benchmark profiles.
 - `scripts/` — compatibility and resource-measurement harnesses.
 - `tests/` — executable contracts and credential-free MCP fixtures.
@@ -158,9 +158,12 @@ uv run --frozen python -m irigate --config profiles/benchmark-heavy.yaml --check
 Environment-dependent evidence checks:
 
 ```bash
+uv run --frozen python -m irigate tools --config profiles/mvp.yaml
 uv run --frozen python -m irigate qualify --config profiles/mvp.yaml
 uv run --frozen python scripts/compatibility.py --config profiles/mvp.yaml
 uv run --frozen python scripts/benchmark.py --config profiles/benchmark-heavy.yaml --clients 1,5,20 --repetitions 3
 ```
 
 The full test suite must prove default-all behavior, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output.
+
+`irigate tools --config <profile>` initializes every configured upstream, prints one namespaced tool name per line, and closes all discovery workers before exiting. It is runtime discovery rather than static validation, so package downloads, network access, and referenced environment variables may be required.

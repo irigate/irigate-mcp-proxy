@@ -8,7 +8,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 
 - `models.py` owns typed static configuration and fail-closed field validation.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
-- `__main__.py` owns the `irigate` console contract.
+- `__main__.py` owns serving, validation, qualification, and runtime tool-discovery console contracts.
 - `app.py` owns the loopback Streamable HTTP application, Origin policy, and background profile watcher.
 - `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, worker selection, and atomic upstream reload.
 - `selection.py` owns typed agent selector parsing, normalization, and fail-closed set computation.
@@ -45,6 +45,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Keep configuration parsing free of process startup side effects.
 - Return typed models from public loaders; do not pass raw YAML mappings into runtime code.
 - Error messages may identify fields and environment-variable names, never resolved values.
+- Runtime tool discovery prints namespaced tool names only and closes every worker before returning.
 
 ## Verification
 

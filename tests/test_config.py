@@ -198,6 +198,40 @@ def test_cli_check_prints_metadata_without_environment_values(
     assert "must-not-appear-in-cli-output" not in result.stdout + result.stderr
 
 
+def test_cli_tools_lists_namespaced_tools_from_profile(tmp_path: Path) -> None:
+    echo_server = Path(__file__).parent / "fixtures" / "echo_server.py"
+    profile = write_profile(
+        tmp_path,
+        "\n".join(
+            [
+                "name: tool-list",
+                "host: 127.0.0.1",
+                "port: 8765",
+                "upstreams:",
+                "  echo:",
+                "    transport: stdio",
+                f"    command: {sys.executable}",
+                f"    args: [{echo_server}]",
+                "    env: {}",
+                "    shareable: false",
+                "    concurrency: serial",
+                "    call_timeout_seconds: 5",
+                "    idle_timeout_seconds: 60",
+            ]
+        ),
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-m", "irigate", "tools", "--config", str(profile)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == ["echo__repeat", "echo__terminate"]
+
+
 def test_cli_exits_nonzero_on_validation_error(tmp_path: Path) -> None:
     profile = write_profile(tmp_path, VALID_PROFILE.replace("host: 127.0.0.1", "host: 0.0.0.0"))
 
