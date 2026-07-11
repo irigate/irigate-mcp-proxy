@@ -112,7 +112,9 @@ upstreams:
 | `runtime_report_path` | No | Disabled | JSON report destination. The file is refreshed atomically and contains metadata only. |
 | `upstreams` | Yes | — | Non-empty mapping of routing keys to stdio upstream definitions. |
 
-The smallest useful profile includes both required broker fields and the two required fields for each upstream:
+### Required broker-field example
+
+`name` and `upstreams` belong in the broker profile selected by `--config`. They are not HTTP query parameters, and Irigate does not accept `--name` or `--upstreams` CLI flags. The smallest useful profile includes both required broker fields and the two required fields for each upstream:
 
 ```yaml
 name: local-development
@@ -124,6 +126,15 @@ upstreams:
 ```
 
 Choose `name` as a stable identifier for where or why the profile runs, such as `local-development`, `project-docs`, or `benchmark`. It appears in validation output and runtime reports but does not change routing. Choose each upstream key, such as `context7`, as the stable tool namespace: the key becomes the prefix in `<upstream-key>__<tool-name>`. Add every MCP server Irigate should be able to expose under `upstreams`; at least one entry is required.
+
+Save that profile, for example as `profiles/local.yaml`, then pass it when starting or inspecting Irigate:
+
+```bash
+uv run --frozen irigate --config profiles/local.yaml --check
+uv run --frozen irigate --config profiles/local.yaml
+```
+
+The first command validates the required fields without starting upstreams. The second starts the broker with profile name `local-development` and the configured `context7` upstream.
 
 If either broker field is absent, Irigate exits before starting the HTTP listener and writes an actionable configuration error to stderr with a minimal example.
 
@@ -170,13 +181,13 @@ The broker listens at `http://127.0.0.1:8765/mcp` without starting upstreams. A 
 
 ### Agent-side selection
 
-Use exact tools for the narrowest and recommended configuration:
+The agent URL does not repeat the broker profile's required `name` and `upstreams` fields. It connects to an already-running profile. The examples below assume Irigate was started with `--config profiles/mvp.yaml`; that profile contains `name: mvp` and defines the `context7` and `code-review-graph` upstream keys. Use exact tools for the narrowest and recommended agent configuration:
 
 ```text
 http://127.0.0.1:8765/mcp?tools=context7__resolve-library-id,context7__query-docs
 ```
 
-Select complete upstreams when the agent needs their full tool surfaces:
+Select complete upstreams by their keys from the active broker profile when the agent needs their full tool surfaces:
 
 ```text
 http://127.0.0.1:8765/mcp?upstreams=context7,code-review-graph
