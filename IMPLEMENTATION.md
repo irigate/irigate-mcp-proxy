@@ -82,12 +82,13 @@ Every downstream URL may omit selection to expose all configured upstreams uncha
 - `upstreams=a,b` exposes every tool from the positive set.
 - `upstreams=!a,!b` starts from all configured upstreams and subtracts exclusions.
 - Mixed upstream selectors use positive-base-minus-exclusions semantics; exclusion always wins.
+- `agent=<name>` may accompany either selector or the bare endpoint and attributes valid tool calls to an explicit downstream label.
 
-Unknown positive or reverse names, repeated parameters, malformed tokens, unrelated query parameters, and empty final sets fail closed. Reverse-only selection may broaden after reload when the profile adds an upstream. Selection is enforced per request even when another agent already activated the same process. Concurrent first activation is single-flight per upstream.
+Unknown positive or reverse names, repeated parameters, malformed tokens, unrelated query parameters, invalid or repeated agent labels, and empty final sets fail closed. Agent labels are attribution metadata rather than authentication; omitted labels use `anonymous`, and identity is never inferred from headers. Reverse-only selection may broaden after reload when the profile adds an upstream. Selection is enforced per request even when another agent already activated the same process. Concurrent first activation is single-flight per upstream.
 
 ## Evidence boundaries
 
-Audit records contain timestamp, upstream key, tool name, duration, and outcome. Runtime reports contain modes, qualification state, counts, durations, failures, crashes, reuse, and avoided-instance evidence.
+Audit records contain timestamp, upstream key, tool name, duration, and outcome. Runtime report schema version 2 contains modes, qualification state, live instances, counts, durations, failures, crashes, reuse, avoided-instance evidence, and per-agent call/failure counts by upstream.
 
 Neither surface may contain arguments, results, environment values, commands, authorization headers, credentials, or hashes of low-entropy secrets. Runtime reports may claim consolidation only when multiple logical clients reused a qualified worker.
 
@@ -95,14 +96,14 @@ Neither surface may contain arguments, results, environment values, commands, au
 
 - `src/irigate/models.py` — typed configuration and field validation.
 - `src/irigate/config.py` — duplicate-safe YAML loading and environment-reference resolution.
-- `src/irigate/app.py` — loopback Streamable HTTP application, selector propagation, Origin enforcement, and profile watching.
+- `src/irigate/app.py` — loopback Streamable HTTP application, selector and agent-label propagation, Origin enforcement, and profile watching.
 - `src/irigate/broker.py` — deferred activation, selection-scoped tool aggregation, exact routing, worker selection, atomic reload, degradation, and shutdown coordination.
 - `src/irigate/selection.py` — typed selector parsing, normalization, and fail-closed set computation.
 - `src/irigate/upstream.py` — stdio worker lifecycle, concurrency, bounded calls, and process cleanup.
 - `src/irigate/qualification.py` — generic checks, qualifier registry, and sharing admission.
 - `src/irigate/runtime_report.py` — counters and atomic metadata-only snapshots.
 - `src/irigate/audit.py` — one metadata-only call record per outcome.
-- `src/irigate/__main__.py` — `--check`, runtime tool discovery, direct tool calls, `qualify`, and serving CLI contracts.
+- `src/irigate/__main__.py` — `--check`, runtime tool discovery, direct tool calls, `ps`, `qualify`, and serving CLI contracts.
 - `profiles/` — static runtime and benchmark profiles.
 - `scripts/` — compatibility and resource-measurement harnesses.
 - `tests/` — executable contracts and credential-free MCP fixtures.
@@ -160,6 +161,7 @@ Environment-dependent evidence checks:
 ```bash
 uv run --frozen python -m irigate tools --config profiles/mvp.yaml
 uv run --frozen python -m irigate call --config profiles/mvp.yaml <upstream>__<tool> --arguments '{}'
+uv run --frozen python -m irigate ps --config profiles/mvp.yaml
 uv run --frozen python -m irigate qualify --config profiles/mvp.yaml
 uv run --frozen python scripts/compatibility.py --config profiles/mvp.yaml
 uv run --frozen python scripts/benchmark.py --config profiles/benchmark-heavy.yaml --clients 1,5,20 --repetitions 3
@@ -170,3 +172,5 @@ The full test suite must prove default-all behavior, selected-only activation, e
 `irigate tools --config <profile>` initializes every configured upstream, prints one namespaced tool name per line, and closes all discovery workers before exiting. It is runtime discovery rather than static validation, so package downloads, network access, and referenced environment variables may be required.
 
 `irigate call --config <profile> <upstream>__<tool> [--arguments <JSON-object>]` invokes one namespaced tool without opening the HTTP listener. It writes the complete MCP result as JSON, maps successful/tool-error results to exit codes `0`/`1`, rejects malformed or non-object arguments with exit code `2`, and closes the selected worker before exiting. Credentials remain broker-process environment values and must not be supplied in tool arguments.
+
+`irigate ps --config <profile> [--json]` reads the configured runtime report without resolving upstream environment references or starting processes. The table emits one upstream/agent row with effective mode, live instances, calls, and failures; JSON mode preserves the complete snapshot. Process liveness reflects the latest atomic write, while usage counters cover only the broker run represented by that report.

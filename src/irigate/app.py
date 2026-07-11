@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar, Token
@@ -27,6 +28,8 @@ logger = logging.getLogger(__name__)
 _request_selection: ContextVar[Selection | None] = ContextVar(
     "irigate_request_selection", default=None
 )
+_request_agent: ContextVar[str] = ContextVar("irigate_request_agent", default="anonymous")
+_AGENT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 
 
 def current_selection() -> Selection:
@@ -34,6 +37,10 @@ def current_selection() -> Selection:
     if selection is None:
         raise RuntimeError("MCP request has no validated selector")
     return selection
+
+
+def current_agent() -> str:
+    return _request_agent.get()
 
 
 class _StreamableHTTPApp:
@@ -48,7 +55,14 @@ class _StreamableHTTPApp:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         try:
             query = QueryParams(scope.get("query_string", b"").decode("utf-8"))
-            selection = parse_selection(query.multi_items(), self._configured_upstreams())
+            agent_values = query.getlist("agent")
+            if len(agent_values) > 1:
+                raise SelectionError("repeated agent parameters are not allowed")
+            agent = agent_values[0] if agent_values else "anonymous"
+            if _AGENT_NAME.fullmatch(agent) is None:
+                raise SelectionError("invalid agent name")
+            selector_items = [item for item in query.multi_items() if item[0] != "agent"]
+            selection = parse_selection(selector_items, self._configured_upstreams())
         except (SelectionError, UnicodeDecodeError) as exc:
             message = str(exc) if isinstance(exc, SelectionError) else "invalid query string"
             response = JSONResponse({"error": message}, status_code=400)
@@ -56,9 +70,11 @@ class _StreamableHTTPApp:
             return
 
         token: Token[Selection | None] = _request_selection.set(selection)
+        agent_token = _request_agent.set(agent)
         try:
             await self._manager.handle_request(scope, receive, send)
         finally:
+            _request_agent.reset(agent_token)
             _request_selection.reset(token)
 
 
@@ -96,7 +112,9 @@ def create_app(
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]):
         session_key = id(server.request_context.session)
-        return await broker.call_tool(name, arguments, session_key, current_selection())
+        return await broker.call_tool(
+            name, arguments, session_key, current_selection(), agent=current_agent()
+        )
 
     origins = [f"http://127.0.0.1:{config.port}", f"http://localhost:{config.port}"]
     if config.host == "::1":

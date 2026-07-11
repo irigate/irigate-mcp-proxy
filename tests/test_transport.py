@@ -77,6 +77,8 @@ async def test_origin_policy_rejects_remote_and_malformed_origins() -> None:
         ("tools=echo__repeat&tools=echo__terminate", "repeated selector"),
         ("upstreams=echo&extra=value", "unsupported query parameter"),
         ("upstreams=missing", "unknown upstream"),
+        ("upstreams=echo&agent=bad%20name", "invalid agent name"),
+        ("upstreams=echo&agent=codex&agent=hermes", "repeated agent"),
     ],
 )
 async def test_rejects_invalid_agent_selector(query: str, message: str) -> None:
@@ -113,3 +115,15 @@ async def test_decodes_reverse_selector_from_url() -> None:
                 result = await session.initialize()
 
     assert result.serverInfo.name == "irigate"
+
+
+async def test_accepts_explicit_agent_with_selector() -> None:
+    async with running_broker(
+        {"echo": upstream()}, selector="upstreams=echo&agent=codex"
+    ) as url:
+        async with streamable_http_client(url) as streams:
+            async with ClientSession(streams[0], streams[1]) as session:
+                await session.initialize()
+                result = await session.call_tool("echo__repeat", {"value": "tagged"})
+
+    assert result.isError is False

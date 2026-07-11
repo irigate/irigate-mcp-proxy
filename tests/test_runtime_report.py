@@ -50,7 +50,10 @@ async def test_multi_client_shared_run_reports_avoided_instances(tmp_path: Path)
     try:
         for client in ("client-a", "client-b", "client-c"):
             await broker.call_tool(
-                "context7__query-docs", {"library_id": "/test/library"}, client
+                "context7__query-docs",
+                {"library_id": "/test/library"},
+                client,
+                agent=client,
             )
     finally:
         await broker.close()
@@ -61,6 +64,34 @@ async def test_multi_client_shared_run_reports_avoided_instances(tmp_path: Path)
     assert upstream_report["logical_bindings"] == 3
     assert upstream_report["spawns"] >= 1
     assert upstream_report["reuse_hits"] >= 2
+    assert report["schema_version"] == 2
+    assert report["agents"] == {
+        "client-a": {"context7": {"calls": 1, "failures": 0}},
+        "client-b": {"context7": {"calls": 1, "failures": 0}},
+        "client-c": {"context7": {"calls": 1, "failures": 0}},
+    }
+
+
+async def test_agent_failure_is_counted_without_recording_payload(tmp_path: Path) -> None:
+    config = with_report(config_for(8765, {"echo": upstream()}), tmp_path / "report.json")
+    broker = Broker(config)
+    await broker.start()
+    try:
+        result = await broker.call_tool(
+            "echo__repeat",
+            {"missing": "sentinel-agent-payload"},
+            "session",
+            agent="codex",
+        )
+        assert result.isError is True
+    finally:
+        await broker.close()
+
+    assert config.runtime_report_path is not None
+    report_text = config.runtime_report_path.read_text()
+    report = json.loads(report_text)
+    assert report["agents"] == {"codex": {"echo": {"calls": 1, "failures": 1}}}
+    assert "sentinel-agent-payload" not in report_text
 
 
 async def test_isolated_run_never_claims_consolidation(tmp_path: Path) -> None:

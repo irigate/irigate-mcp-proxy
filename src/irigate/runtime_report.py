@@ -40,6 +40,12 @@ class _UpstreamMetrics:
     crashes: int = 0
 
 
+@dataclass(slots=True)
+class _AgentUpstreamMetrics:
+    calls: int = 0
+    failures: int = 0
+
+
 class RuntimeMetrics:
     """Metadata-only runtime counters and atomic JSON snapshots."""
 
@@ -52,6 +58,7 @@ class RuntimeMetrics:
             )
             for key, value in config.upstreams.items()
         }
+        self._agents: dict[str, dict[str, _AgentUpstreamMetrics]] = {}
 
     def qualification(self, key: str, result: QualificationResult) -> None:
         item = self._upstreams[key]
@@ -103,6 +110,13 @@ class RuntimeMetrics:
         if crash:
             item.crashes += 1
 
+    def agent_call(self, agent: str, key: str) -> None:
+        upstreams = self._agents.setdefault(agent, {})
+        upstreams.setdefault(key, _AgentUpstreamMetrics()).calls += 1
+
+    def agent_failed(self, agent: str, key: str) -> None:
+        self._agents[agent][key].failures += 1
+
     def snapshot(self) -> dict[str, Any]:
         upstreams: dict[str, Any] = {}
         avoided = 0
@@ -135,9 +149,17 @@ class RuntimeMetrics:
         else:
             evidence = "isolated"
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "profile": self.config.name,
             "upstreams": upstreams,
+            "agents": {
+                agent: {
+                    key: {"calls": item.calls, "failures": item.failures}
+                    for key, item in sorted(agent_upstreams.items())
+                    if key in self.config.upstreams
+                }
+                for agent, agent_upstreams in sorted(self._agents.items())
+            },
             "summary": {"evidence": evidence, "avoided_instances": avoided},
         }
 

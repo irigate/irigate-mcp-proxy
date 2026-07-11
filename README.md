@@ -17,6 +17,7 @@ Irigate is a loopback-only MCP broker. It lets local agent sessions share explic
 | **⎇** | **Exact namespaced routing**<br>Expose deterministic `<upstream>__<tool>` names and reject ambiguous or unknown routes. | **◎** | **Session isolation**<br>Scope non-shareable workers to downstream sessions so context-bound state never leaks across agents. |
 | **⚡** | **Explicit concurrency**<br>Choose serial or parallel execution per upstream, with independent queues and bounded call timeouts. | **◷** | **Bounded lifecycle**<br>Shut down each idle upstream on its configured timeout, restart it on demand, and terminate children without leaving orphans. |
 | **◇** | **Metadata-only observability**<br>Record outcomes, durations, reuse, failures, and process counts without payloads, commands, or credentials. | **⚖** | **Measured compatibility**<br>Run qualification, multi-client compatibility checks, and repeatable 1/5/20-client resource benchmarks. |
+| **⌘** | **Direct CLI tool calls**<br>Invoke one namespaced MCP tool from automation without starting the HTTP listener. | **▦** | **Process and usage inspection**<br>Use `irigate ps` to see live instances, effective modes, and per-agent call and failure counts. |
 
 ## Problem hypothesis
 
@@ -109,7 +110,7 @@ upstreams:
 | `name` | Yes | — | Profile identifier using lowercase letters, digits, and hyphens. It labels `--check` output and runtime reports so operators can distinguish configurations; it does not affect routing. |
 | `host` | No | `127.0.0.1` | Listener address. Only `localhost` or an IP loopback address is accepted. |
 | `port` | No | `8765` | Streamable HTTP listener port, from 1 through 65535. |
-| `runtime_report_path` | No | Disabled | JSON report destination. The file is refreshed atomically and contains metadata only. |
+| `runtime_report_path` | No | Disabled | JSON report destination. The file is refreshed atomically and contains process statistics plus validated agent labels, never payloads or credentials. |
 | `upstreams` | Yes | — | Non-empty mapping of routing keys to stdio upstream definitions. |
 
 ### Required broker-field example
@@ -207,6 +208,16 @@ http://127.0.0.1:8765/mcp?upstreams=context7,code-review-graph,!code-review-grap
 
 This selects only `context7`. Omitting both selector parameters exposes all configured upstreams unchanged. Reverse-only selection also starts from all currently configured upstreams, so profile reloads can broaden it when a new upstream is added. Prefer `tools=` for least privilege. When selection is used, provide only one `tools` or `upstreams` parameter; repeated parameters, unknown names, malformed tokens, unrelated query parameters, and an empty result are rejected. Exact tool selection never supports `!` because excluding one tool cannot avoid starting its upstream.
 
+Add an explicit `agent=` label to attribute calls in the runtime report:
+
+```text
+http://127.0.0.1:8765/mcp?upstreams=code-review-graph&agent=codex
+```
+
+Agent labels are metadata, not authentication. They must be 1–64 letters, digits, dots, underscores, or hyphens and are recorded only after a valid tool call. Omitted labels are grouped as `anonymous`; Irigate does not guess identity from client headers.
+
+### CLI operations
+
 List the exact namespaced tools available from a profile before configuring an agent:
 
 ```bash
@@ -224,6 +235,15 @@ uv run --frozen irigate call --config profiles/mvp.yaml \
 ```
 
 `--arguments` accepts one JSON object and defaults to `{}`. The command prints the complete MCP `CallToolResult` as JSON, exits `0` for a successful tool result, `1` for an MCP or upstream error, and `2` for invalid configuration or arguments. The upstream starts only for this call and is closed before the command exits. Pass credentials through the profile's environment references, never through tool arguments.
+
+Inspect the latest runtime snapshot in a `ps`/`netstat`-style table:
+
+```bash
+uv run --frozen irigate ps --config profiles/mvp.yaml
+uv run --frozen irigate ps --config profiles/mvp.yaml --json
+```
+
+Each table row identifies an upstream/agent pair and shows effective mode, live process count, calls, and failures. `--json` returns the complete report for automation. This command reads `runtime_report_path` without starting upstreams or resolving their environment references; it is a snapshot, so a report left by a stopped broker has zero live instances but retains cumulative usage from that run.
 
 An agent can combine Irigate with a directly managed MCP server:
 
@@ -246,7 +266,7 @@ Run qualification without opening the client endpoint when diagnosing startup:
 uv run --frozen irigate qualify --config profiles/mvp.yaml
 ```
 
-Audit records are written as JSON lines to stderr. The default profile atomically refreshes `.irigate/runtime-report.json` with metadata-only process, reuse, timing, and failure counters.
+Audit records are written as JSON lines to stderr. The default profile atomically refreshes `.irigate/runtime-report.json` with metadata-only process, reuse, timing, failure, and per-agent usage counters. Agent labels are the only client-provided metadata retained in that report; tool arguments and results remain excluded.
 
 ## Not part of the MVP
 

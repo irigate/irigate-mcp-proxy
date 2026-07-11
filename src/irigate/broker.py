@@ -353,6 +353,8 @@ class Broker:
         arguments: dict[str, Any],
         session_key: Hashable,
         selection: Selection | None = None,
+        *,
+        agent: str = "anonymous",
     ) -> types.CallToolResult:
         audit_started = time.monotonic()
         upstream_key, separator, tool_name = name.partition("__")
@@ -393,6 +395,7 @@ class Broker:
                 duration_seconds=time.monotonic() - audit_started,
             )
             return self._error("broker is shutting down")
+        self._runtime.agent_call(agent, upstream_key)
         try:
             worker = await self.worker_for(upstream_key, session_key)
             started = time.monotonic()
@@ -404,6 +407,7 @@ class Broker:
                 )
             if result.isError:
                 await self._record_failure(upstream_key, crash=False)
+                self._runtime.agent_failed(agent, upstream_key)
             self._audit.emit(
                 upstream=upstream_key,
                 tool=tool_name,
@@ -413,6 +417,7 @@ class Broker:
             return result
         except UpstreamTimeout as exc:
             await self._record_failure(upstream_key, crash=False)
+            self._runtime.agent_failed(agent, upstream_key)
             self._audit.emit(
                 upstream=upstream_key,
                 tool=tool_name,
@@ -422,6 +427,7 @@ class Broker:
             return self._error(str(exc))
         except UpstreamError:
             await self._record_failure(upstream_key, crash=True)
+            self._runtime.agent_failed(agent, upstream_key)
             self._audit.emit(
                 upstream=upstream_key,
                 tool=tool_name,

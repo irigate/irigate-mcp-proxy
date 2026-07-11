@@ -8,8 +8,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 
 - `models.py` owns typed static configuration and fail-closed field validation.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
-- `__main__.py` owns serving, validation, qualification, runtime tool discovery, and direct tool-call console contracts.
-- `app.py` owns the loopback Streamable HTTP application, Origin policy, and background profile watcher.
+- `__main__.py` owns serving, validation, qualification, runtime tool discovery, direct tool-call, and process-report console contracts.
+- `app.py` owns the loopback Streamable HTTP application, agent-label propagation, Origin policy, and background profile watcher.
 - `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, worker selection, and atomic upstream reload.
 - `selection.py` owns typed agent selector parsing, normalization, and fail-closed set computation.
 - `upstream.py` owns one stdio process/session worker and bounded calls.
@@ -30,7 +30,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Shutdown closes the HTTP session manager before workers and bounds active-call draining.
 - Requested sharing defaults to isolated when qualification fails; strict mode aborts startup.
 - Qualification probes use fixed non-destructive surfaces and never forward client payloads.
-- Runtime reports contain counts, durations, modes, and upstream keys only.
+- Runtime reports contain counts, durations, modes, upstream keys, and validated agent labels only.
 - A degraded shared upstream remains degraded until process restart.
 - Audit records contain timestamp, upstream key, tool name, outcome, and duration only.
 - Arguments, results, environment values, commands, and credentials never enter audit records.
@@ -40,6 +40,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Qualification, schema discovery, and process startup occur only when an agent first selects an upstream; concurrent first selection is single-flight per upstream.
 - Exact tool selectors filter `tools/list` and dispatch; process-wide activation by another agent never broadens a request's selection.
 - Direct CLI calls accept one JSON object, emit the complete MCP result as JSON, return nonzero for tool errors, and close their worker before exiting.
+- Downstream `agent` labels are explicit attribution metadata, not authentication; omitted labels are `anonymous` and Irigate never infers identity.
+- `ps` reads the latest runtime report without resolving environments or starting upstreams and supports table and JSON output.
 
 ## Work Guidance
 

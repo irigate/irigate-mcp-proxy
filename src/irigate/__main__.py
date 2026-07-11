@@ -47,6 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="JSON",
         help="tool arguments as a JSON object (default: {})",
     )
+    ps = subcommands.add_parser("ps", help="show MCP upstream and agent usage")
+    ps.add_argument("--config", required=True, help="YAML profile path")
+    ps.add_argument("--json", action="store_true", help="print the runtime report as JSON")
     return parser
 
 
@@ -66,10 +69,75 @@ async def call_configured_tool(
     broker = Broker(config)
     await broker.start()
     try:
-        result = await broker.call_tool(tool, arguments, "cli")
+        result = await broker.call_tool(tool, arguments, "cli", agent="cli")
         return result.model_dump_json(exclude_none=True), result.isError is True
     finally:
         await broker.close()
+
+
+def read_runtime_report(config: BrokerConfig) -> dict[str, object]:
+    path = config.runtime_report_path
+    if path is None:
+        raise ValueError("profile has no runtime_report_path")
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"cannot read runtime report: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid runtime report JSON: {path}") from exc
+    if not isinstance(report, dict):
+        raise ValueError(f"invalid runtime report document: {path}")
+    return report
+
+
+def format_process_report(report: dict[str, object]) -> str:
+    upstreams = report.get("upstreams", {})
+    agents = report.get("agents", {})
+    if not isinstance(upstreams, dict) or not isinstance(agents, dict):
+        raise ValueError("runtime report has invalid upstream or agent statistics")
+    rows = []
+    for key, raw_upstream in upstreams.items():
+        if not isinstance(raw_upstream, dict):
+            continue
+        agent_rows = []
+        for name, raw_agent in agents.items():
+            if not isinstance(raw_agent, dict):
+                continue
+            usage = raw_agent.get(key)
+            if isinstance(usage, dict):
+                agent_rows.append(
+                    (
+                        str(name),
+                        str(usage.get("calls", 0)),
+                        str(usage.get("failures", 0)),
+                    )
+                )
+        duration = raw_upstream.get("call_duration", {})
+        calls = str(duration.get("count", 0) if isinstance(duration, dict) else 0)
+        if not agent_rows:
+            agent_rows = [("-", calls, str(raw_upstream.get("failures", 0)))]
+        for agent, agent_calls, agent_failures in agent_rows:
+            rows.append(
+                (
+                    str(key),
+                    str(raw_upstream.get("effective_mode", "unknown")),
+                    str(raw_upstream.get("live_instances", 0)),
+                    agent,
+                    agent_calls,
+                    agent_failures,
+                )
+            )
+    headers = ("UPSTREAM", "MODE", "INSTANCES", "AGENT", "CALLS", "FAILURES")
+    widths = [
+        max(len(headers[index]), *(len(row[index]) for row in rows))
+        if rows
+        else len(headers[index])
+        for index in range(len(headers))
+    ]
+    return "\n".join(
+        "  ".join(value.ljust(widths[index]) for index, value in enumerate(row))
+        for row in (headers, *rows)
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -78,7 +146,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         build_parser().error("--config is required")
     try:
         config = load_config(args.config)
-        config.resolve_environment()
+        if args.command != "ps":
+            config.resolve_environment()
     except ConfigurationError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
@@ -118,6 +187,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(output)
         return 1 if is_error else 0
+
+    if args.command == "ps":
+        try:
+            report = read_runtime_report(config)
+            output = (
+                json.dumps(report, sort_keys=True)
+                if args.json
+                else format_process_report(report)
+            )
+        except ValueError as exc:
+            print(f"runtime report error: {exc}", file=sys.stderr)
+            return 1
+        print(output)
+        return 0
 
     if args.check:
         upstreams = ",".join(config.upstreams)
