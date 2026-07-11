@@ -276,8 +276,9 @@ Content schemas must require unique title, description, and SEO description fiel
 | Phase 7 — add GitHub Pages deployment workflow | Done | Committed as `139e79a`; local `act` requires a Docker daemon. |
 | Phase 0 — confirm open deployment inputs | Done | Authorized by Raphael Bossek in `GITHUB-PAGES.md`. |
 | Phase 9 — add GitHub Pages maintenance guide | Done | Committed as `211d913`. |
-| Phase 8a — add local custom-domain artifact | Done | Verification passed; commit checkpoint pending. |
-| Phase 8b — configure and verify the custom domain | Gated | Requires pushing the deployment workflow; prohibited by the current no-push constraint. |
+| Phase 8a — add local custom-domain artifact | Done | Committed as `c8f0a6b`. |
+| Phase 8b — configure and verify DNS | Done | Apex GitHub Pages A results and `www` CNAME verified recursively and on all authoritative nameservers; commit checkpoint pending. |
+| Phase 8c — enable Pages and verify deployment | Gated | Requires pushing the deployment workflow; prohibited by the current no-push constraint. |
 | Phase 10 — update repository-facing documentation | Todo | Starts after the domain gate and maintenance guide are complete. |
 
 ### Phase 0 — confirm open deployment inputs (gate, not a build phase)

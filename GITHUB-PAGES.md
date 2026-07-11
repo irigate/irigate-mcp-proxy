@@ -9,8 +9,8 @@ Cutover is authorized by the resolved rows below. Recheck every operational fact
 | Input | Observed on 2026-07-11 | Required before Phase 8 cutover | Operator |
 | --- | --- | --- | --- |
 | GitHub domain verification owner | Organization `irigate` owns and will verify `irigate.io`. | Verify the domain in the `irigate` organization before adding the custom domain. | Raphael Bossek — approved 2026-07-11 |
-| DNS provider and apex support | Current NS records are AWS Route 53: `ns-487.awsdns-60.com.`, `ns-849.awsdns-42.net.`, `ns-1306.awsdns-35.org.`, `ns-1579.awsdns-05.co.uk.` Route 53 supports apex ALIAS records; operator access is confirmed. | Use an apex ALIAS to `irigate.github.io` and retain the GitHub verification TXT record. | Raphael Bossek — approved 2026-07-11 |
-| `www.irigate.io` redirect | Redirect `www.irigate.io` to the apex. No current `www.irigate.io` CNAME was observed. | Add `www.irigate.io` CNAME to `irigate.github.io`; GitHub Pages performs the redirect to the configured apex. | Raphael Bossek — approved 2026-07-11 |
+| DNS provider and apex support | AWS Route 53 apex ALIAS is active. Recursive and all four authoritative nameservers return GitHub Pages A records `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, and `185.199.111.153`. No AAAA records are configured. | Retain the apex ALIAS and GitHub verification TXT record; recheck before Pages setup. | Raphael Bossek — configured and verified 2026-07-11 |
+| `www.irigate.io` redirect | `www.irigate.io` CNAME to `irigate.github.io` is active on recursive and all authoritative nameservers. | Retain the CNAME; GitHub Pages performs the redirect to the configured apex after Pages setup. | Raphael Bossek — configured and verified 2026-07-11 |
 | Pages availability | Repository visibility is private. GitHub Pages API returned HTTP 404 before setup. Private-repository Pages is permitted and should be enabled. | Enable Pages with GitHub Actions as the source, then set `irigate.io` as the custom domain. | Raphael Bossek — approved 2026-07-11 |
 
 ## Control Surfaces
@@ -53,23 +53,22 @@ GitHub's current Pages docs, rechecked on 2026-07-11, are the source of truth fo
 
 Recheck GitHub's DNS records immediately before Phase 8 execution. Values below were rechecked against official GitHub docs on 2026-07-11 and must not be treated as permanent.
 
-For apex `irigate.io`, choose one:
+The active apex configuration is a Route 53 ALIAS to `irigate.github.io`. The resulting authoritative A records are:
 
-- Preferred with Route 53: apex `ALIAS` from `irigate.io` to `irigate.github.io`.
-- Alternative: all GitHub Pages A records:
+- GitHub Pages A records:
   - `185.199.108.153`
   - `185.199.109.153`
   - `185.199.110.153`
   - `185.199.111.153`
-- Optional IPv6 support, alongside A records, with all GitHub Pages AAAA records:
+- Optional IPv6 support is not configured. If added later, use all GitHub Pages AAAA records alongside the apex ALIAS/A results:
   - `2606:50c0:8000::153`
   - `2606:50c0:8001::153`
   - `2606:50c0:8002::153`
   - `2606:50c0:8003::153`
 
-For `www.irigate.io`, if the Phase 0 decision is yes, add a CNAME pointing directly to `irigate.github.io`, without the repository name. Do not add wildcard DNS records. Remove conflicting default, extra apex, or stray subdomain records before certificate provisioning.
+`www.irigate.io` has an active CNAME pointing directly to `irigate.github.io`, without the repository name. Do not add wildcard DNS records. Remove conflicting default, extra apex, or stray subdomain records before certificate provisioning.
 
-`site/public/CNAME`, once authorized and added in Phase 8, records repository intent only. GitHub Pages settings and DNS remain authoritative.
+`site/public/CNAME` records repository intent only. GitHub Pages settings and DNS remain authoritative.
 
 ## Local Authoring And Preview
 
