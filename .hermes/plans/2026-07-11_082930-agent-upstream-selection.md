@@ -12,7 +12,7 @@ Let each downstream MCP agent explicitly select which Irigate upstreams or exact
 | 2. Carry selection through Streamable HTTP requests | Done | Committed checkpoint |
 | 3. Defer upstream activation and filter tool exposure | Done | Committed checkpoint |
 | 4. Make reload selection-aware | Done | Committed checkpoint |
-| 5. Update user and implementation documentation | Todo | Requires Phase 4 commit |
+| 5. Update user and implementation documentation | Done | Committed checkpoint |
 | 6. Full verification and graph review | Todo | Requires Phase 5 commit |
 
 ## Current context and assumptions

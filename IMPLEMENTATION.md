@@ -15,7 +15,7 @@ It is not an enterprise gateway. Remote access, tenant identity, authorization, 
 
 1. `config.load_config()` parses a YAML profile into typed models, rejects duplicate keys and unknown fields, and resolves only `${ENV_NAME}` references from the broker process environment.
 2. `app.create_app()` exposes MCP Streamable HTTP on a loopback address, enforces the Origin policy, and watches the selected profile for background reloads. Local non-browser clients may omit `Origin`; malformed or non-loopback origins are rejected.
-3. `Broker` initializes configured upstreams, aggregates `tools/list`, routes exact `<upstream-key>__<tool-name>` calls, and atomically swaps successfully prepared upstream changes.
+3. `Broker` validates each agent selection, activates only selected upstreams, filters `tools/list`, routes exact `<upstream-key>__<tool-name>` calls, and atomically swaps successfully prepared active-upstream changes.
 4. `Broker` selects a shared worker only when sharing was requested and qualification passed. Otherwise it creates workers scoped to downstream sessions.
 5. `UpstreamWorker` owns one stdio MCP process/session, concurrency control, bounded calls, per-process idle expiry, and termination.
 6. `RuntimeMetrics` records metadata-only counters and atomically refreshes the configured JSON report.
@@ -44,8 +44,8 @@ Constraints:
 Runtime reload behavior:
 
 - The profile file is polled in the background while serving.
-- Added and changed upstreams must initialize successfully before the active routing table changes.
-- A successful reload retires only changed or removed upstream workers. Existing downstream Streamable HTTP sessions remain connected and see the refreshed tool list.
+- Changed active upstreams must initialize successfully before the active routing table changes; added and changed dormant upstreams remain stopped.
+- A successful reload retires only changed active or removed upstream workers. Existing downstream Streamable HTTP sessions remain connected and selectors are evaluated against the refreshed profile.
 - Invalid files, missing environment references, and failed upstream initialization leave the last valid configuration active.
 - `host` and `port` changes are rejected at runtime because they require replacing the listening socket.
 
@@ -55,7 +55,7 @@ MCP transport behavior cannot prove that an upstream is semantically safe to sha
 
 - Generic checks use two isolated instances to verify initialization, stable tool-schema fingerprints, reconnect behavior, timeout handling, and crash isolation.
 - Qualifiers are registered by name and contain only reviewed, non-destructive, upstream-specific probes.
-- Failed qualification downgrades the upstream to isolated mode. `--require-qualified-sharing` converts that downgrade into a startup failure.
+- Failed qualification downgrades the selected upstream to isolated mode. `--require-qualified-sharing` rejects its first selected use.
 - A shared upstream that reaches its configured error or crash threshold becomes degraded. New sessions use isolated workers, and shared mode is not restored until restart.
 
 Context7 is the qualified shared upstream in `profiles/mvp.yaml`. Its qualifier covers its fixed-identity, read-only surface. Code-review-graph remains isolated because it retains context-bound state. An upstream with no reviewed qualifier remains isolated.
@@ -76,6 +76,15 @@ Context7 is the qualified shared upstream in `profiles/mvp.yaml`. Its qualifier 
 
 Exposed tools use `<upstream-key>__<tool-name>`. Listing and dispatch use the same exact namespace. Unknown prefixes and unknown tool names are rejected; routing never uses first-match behavior.
 
+Every downstream URL supplies exactly one selector:
+
+- `tools=a__x,b__y` activates only referenced upstreams and exposes only the exact tools.
+- `upstreams=a,b` exposes every tool from the positive set.
+- `upstreams=!a,!b` starts from all configured upstreams and subtracts exclusions.
+- Mixed upstream selectors use positive-base-minus-exclusions semantics; exclusion always wins.
+
+Unknown positive or reverse names, repeated parameters, malformed tokens, unrelated query parameters, and empty final sets fail closed. Reverse-only selection may broaden after reload when the profile adds an upstream. Selection is enforced per request even when another agent already activated the same process. Concurrent first activation is single-flight per upstream.
+
 ## Evidence boundaries
 
 Audit records contain timestamp, upstream key, tool name, duration, and outcome. Runtime reports contain modes, qualification state, counts, durations, failures, crashes, reuse, and avoided-instance evidence.
@@ -86,8 +95,9 @@ Neither surface may contain arguments, results, environment values, commands, au
 
 - `src/irigate/models.py` — typed configuration and field validation.
 - `src/irigate/config.py` — duplicate-safe YAML loading and environment-reference resolution.
-- `src/irigate/app.py` — loopback Streamable HTTP application, Origin enforcement, and profile watching.
-- `src/irigate/broker.py` — tool aggregation, exact routing, worker selection, atomic reload, degradation, and shutdown coordination.
+- `src/irigate/app.py` — loopback Streamable HTTP application, selector propagation, Origin enforcement, and profile watching.
+- `src/irigate/broker.py` — deferred activation, selection-scoped tool aggregation, exact routing, worker selection, atomic reload, degradation, and shutdown coordination.
+- `src/irigate/selection.py` — typed selector parsing, normalization, and fail-closed set computation.
 - `src/irigate/upstream.py` — stdio worker lifecycle, concurrency, bounded calls, and process cleanup.
 - `src/irigate/qualification.py` — generic checks, qualifier registry, and sharing admission.
 - `src/irigate/runtime_report.py` — counters and atomic metadata-only snapshots.
@@ -153,4 +163,4 @@ uv run --frozen python scripts/compatibility.py --config profiles/mvp.yaml
 uv run --frozen python scripts/benchmark.py --config profiles/benchmark-heavy.yaml --clients 1,5,20 --repetitions 3
 ```
 
-The full test suite must prove loopback enforcement, exact routing, qualification fallback, session isolation, connection-preserving reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output.
+The full test suite must prove mandatory selection, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output.

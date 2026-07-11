@@ -38,7 +38,7 @@ Sharing is not universally safe. Some MCP servers retain client-specific state, 
 - Node.js with `npx` for the Context7 upstream in `profiles/mvp.yaml`.
 - An installed `code-review-graph` executable for the isolated code-review-graph upstream.
 
-The default profile starts real MCP upstreams. Its first run may download their pinned or current package artifacts and requires network access.
+The default profile defines real MCP upstreams. An upstream starts only when an agent selects it; its first selected use may download pinned or current package artifacts and require network access.
 
 ## Install
 
@@ -139,7 +139,7 @@ export CONTEXT7_API_KEY='...'
 uv run --frozen irigate --config profiles/local.yaml --check
 ```
 
-While serving, Irigate watches the selected profile. Added or changed upstreams must initialize successfully before routing switches. Invalid updates leave the last valid configuration active. Changes to `host` or `port` require restarting the broker.
+While serving, Irigate watches the selected profile. Changed active upstreams must initialize successfully before routing switches. Added and changed dormant upstreams remain stopped until selected. Invalid updates leave the last valid active configuration available. Changes to `host` or `port` require restarting the broker.
 
 ## Run
 
@@ -151,11 +151,50 @@ uv run --frozen irigate \
   --require-qualified-sharing
 ```
 
-The broker qualifies Context7, starts the configured stdio upstreams, and listens at `http://127.0.0.1:8765/mcp`. Configure MCP clients to use that URL with the Streamable HTTP transport. Each upstream's required `idle_timeout_seconds` shuts down that process independently after inactivity; the next routed call starts a fresh process without changing the downstream session. While running, Irigate watches the selected profile. Valid upstream changes are prepared and swapped in the background; affected stdio servers restart without disconnecting existing Streamable HTTP client sessions. Invalid changes are rejected and the active configuration keeps serving. Changes to `host` or `port` require a broker restart.
+The broker listens at `http://127.0.0.1:8765/mcp` without starting upstreams. Every MCP client URL must select tools or upstreams explicitly. Qualification, schema discovery, and process startup happen on first selected use. Each upstream's `idle_timeout_seconds` shuts down that process independently after inactivity; the next routed call starts a fresh process without changing the downstream session.
+
+### Agent-side selection
+
+Use exact tools for the narrowest and recommended configuration:
+
+```text
+http://127.0.0.1:8765/mcp?tools=context7__resolve-library-id,context7__query-docs
+```
+
+Select complete upstreams when the agent needs their full tool surfaces:
+
+```text
+http://127.0.0.1:8765/mcp?upstreams=context7,code-review-graph
+```
+
+Prefix an upstream with `!` when the agent starts that MCP server directly and wants every other configured Irigate upstream:
+
+```text
+http://127.0.0.1:8765/mcp?upstreams=!code-review-graph
+```
+
+Positive and reverse selectors may be mixed. Positive names form the base set and exclusions are subtracted regardless of order:
+
+```text
+http://127.0.0.1:8765/mcp?upstreams=context7,code-review-graph,!code-review-graph
+```
+
+This selects only `context7`. Reverse-only selection starts from all currently configured upstreams, so profile reloads can broaden it when a new upstream is added. Prefer `tools=` for least privilege. Exactly one `tools` or `upstreams` parameter is required; repeated parameters, unknown names, malformed tokens, unrelated query parameters, and an empty result are rejected. Exact tool selection never supports `!` because excluding one tool cannot avoid starting its upstream.
+
+An agent can combine Irigate with a directly managed MCP server:
+
+```yaml
+mcp_servers:
+  irigate:
+    url: "http://127.0.0.1:8765/mcp?upstreams=!code-review-graph"
+  code-review-graph:
+    command: code-review-graph
+    args: [serve]
+```
 
 Stop the broker with `Ctrl+C`; shutdown drains active calls and closes child processes.
 
-Strict mode aborts startup if Context7 cannot be qualified. Omit `--require-qualified-sharing` to keep the broker running with failed shared upstreams downgraded to isolated mode.
+Strict mode rejects the first selected use of Context7 if it cannot be qualified. Omit `--require-qualified-sharing` to downgrade failed selected shared upstreams to isolated mode.
 
 Run qualification without opening the client endpoint when diagnosing startup:
 
