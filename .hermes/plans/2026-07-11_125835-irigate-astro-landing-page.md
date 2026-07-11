@@ -271,9 +271,10 @@ Content schemas must require unique title, description, and SEO description fiel
 | Phase 2 — implement design tokens and shared layouts | Done | Committed as `9346051`. |
 | Phase 3 — implement typed Markdown/MDX content | Done | Committed as `9833c20`. |
 | Phase 4 — add SEO assets and generated crawler files | Done | Committed as `5cbe7bd`. |
-| Phase 5 — add deterministic built-site verification | Done | Verification passed; commit checkpoint pending. |
-| Phase 6 — add pull-request and push validation workflow | Todo | Start after the Phase 5 commit. |
-| Phases 7–10 | Todo | Start only after the preceding phase commit. |
+| Phase 5 — add deterministic built-site verification | Done | Committed as `89664bb`. |
+| Phase 6 — add pull-request and push validation workflow | Done | YAML and site gates passed; local `act` requires a Docker daemon. Commit checkpoint pending. |
+| Phase 7 — add GitHub Pages deployment workflow | Todo | Start after the Phase 6 commit. |
+| Phases 8–10 | Todo | Start only after the preceding phase commit. |
 
 ### Phase 0 — confirm open deployment inputs (gate, not a build phase)
 

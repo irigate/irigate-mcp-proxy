@@ -1,0 +1,57 @@
+name: Site check
+
+on:
+  pull_request:
+    paths:
+      - "site/**"
+      - "assets/**"
+      - "AGENTS.md"
+      - "README.md"
+      - "IMPLEMENTATION.md"
+      - "MARKET-RESEARCH.md"
+      - ".github/workflows/site-check.yml"
+      - ".github/workflows/site-deploy.yml"
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - "site/**"
+      - "assets/**"
+      - "AGENTS.md"
+      - "README.md"
+      - "IMPLEMENTATION.md"
+      - "MARKET-RESEARCH.md"
+      - ".github/workflows/site-check.yml"
+      - ".github/workflows/site-deploy.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify static site
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare "$(node -p "require('./site/package.json').packageManager")" --activate
+
+      - name: Install dependencies
+        working-directory: site
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify
+        working-directory: site
+        run: pnpm verify
