@@ -34,7 +34,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - A degraded shared upstream remains degraded until process restart.
 - Audit records contain timestamp, upstream key, tool name, outcome, and duration only.
 - Arguments, results, environment values, commands, and credentials never enter audit records.
-- Reload prepares added and changed upstreams before routing switches, keeps the last valid configuration on failure, and never replaces downstream HTTP sessions.
+- Reload prepares changed active upstreams before routing switches, keeps added and changed dormant upstreams unstarted, preserves the last valid active configuration on failure, and never replaces downstream HTTP sessions.
 - Runtime `host` and `port` changes are rejected; they require replacing the listener.
 - Agent selectors use exactly one explicit `tools` or `upstreams` mode; upstream exclusions override inclusions and unknown names fail closed.
 - Qualification, schema discovery, and process startup occur only when an agent first selects an upstream; concurrent first selection is single-flight per upstream.

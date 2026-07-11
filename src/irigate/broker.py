@@ -263,7 +263,7 @@ class Broker:
             ] = {}
             try:
                 for key in config.upstreams:
-                    if key in changed or key in added:
+                    if key in changed and key in self._tools_by_upstream:
                         upstream = config.upstreams[key]
                         self._runtime.ensure_upstream(
                             key, upstream.shareable, upstream.qualifier
@@ -299,6 +299,11 @@ class Broker:
                     self._tools_by_upstream.pop(key, None)
                     self._qualifications.pop(key, None)
                     self._degraded.discard(key)
+                    self._activation_locks.pop(key, None)
+                for key in changed - prepared.keys():
+                    self._tools_by_upstream.pop(key, None)
+                    self._qualifications.pop(key, None)
+                    self._degraded.discard(key)
                 for key, (qualification, worker, tools) in prepared.items():
                     self._tools_by_upstream[key] = {tool.name: tool for tool in tools}
                     if qualification is None:
@@ -314,6 +319,7 @@ class Broker:
                 self._exposed_tools = tuple(
                     exposed
                     for key in config.upstreams
+                    if key in self._tools_by_upstream
                     for exposed in self.namespace_tools(
                         key, tuple(self._tools_by_upstream[key].values())
                     )

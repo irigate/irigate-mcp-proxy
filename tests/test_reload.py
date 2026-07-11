@@ -14,6 +14,7 @@ from mcp.client.streamable_http import streamable_http_client
 from irigate.app import create_app
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import load_config
+from irigate.selection import parse_selection
 from tests.helpers import ECHO_SERVER, config_for, upstream
 
 pytestmark = pytest.mark.asyncio
@@ -102,6 +103,7 @@ async def test_failed_reload_keeps_current_upstream_available() -> None:
     broker = Broker(config_for(8765, {"fixture": upstream()}))
     await broker.start()
     try:
+        await broker.call_tool("fixture__repeat", {"value": "active"}, "client")
         broken = config_for(
             8765,
             {
@@ -118,5 +120,46 @@ async def test_failed_reload_keeps_current_upstream_available() -> None:
         )
         assert result.isError is False
         assert result.structuredContent == {"value": "still-running"}
+    finally:
+        await broker.close()
+
+
+async def test_reload_keeps_changed_dormant_upstream_unstarted() -> None:
+    broker = Broker(config_for(8765, {"fixture": upstream()}))
+    await broker.start()
+    try:
+        changed = config_for(
+            8765,
+            {
+                "fixture": upstream(
+                    command="irigate-command-that-does-not-exist", args=[]
+                )
+            },
+        )
+        assert await broker.reload(changed) is True
+        assert broker.runtime_snapshot()["upstreams"]["fixture"]["spawns"] == 0
+
+        with pytest.raises(BrokerInitializationError, match="fixture"):
+            await broker.call_tool("fixture__repeat", {}, "client")
+    finally:
+        await broker.close()
+
+
+async def test_reload_adds_upstream_without_starting_it() -> None:
+    broker = Broker(config_for(8765, {"fixture": upstream()}))
+    await broker.start()
+    try:
+        replacement = config_for(
+            8765, {"fixture": upstream(), "added": upstream()}
+        )
+        assert await broker.reload(replacement) is True
+        assert broker.runtime_snapshot()["upstreams"]["added"]["spawns"] == 0
+
+        selection = parse_selection((("upstreams", "added"),), replacement.upstreams)
+        assert [tool.name for tool in await broker.list_tools(selection)] == [
+            "added__repeat",
+            "added__terminate",
+        ]
+        assert broker.runtime_snapshot()["upstreams"]["added"]["spawns"] >= 1
     finally:
         await broker.close()

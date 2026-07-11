@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar, Token
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from mcp.server.lowlevel import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
@@ -38,7 +38,9 @@ def current_selection() -> Selection:
 
 class _StreamableHTTPApp:
     def __init__(
-        self, manager: StreamableHTTPSessionManager, configured_upstreams: tuple[str, ...]
+        self,
+        manager: StreamableHTTPSessionManager,
+        configured_upstreams: Callable[[], tuple[str, ...]],
     ) -> None:
         self._manager = manager
         self._configured_upstreams = configured_upstreams
@@ -46,7 +48,7 @@ class _StreamableHTTPApp:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         try:
             query = QueryParams(scope.get("query_string", b"").decode("utf-8"))
-            selection = parse_selection(query.multi_items(), self._configured_upstreams)
+            selection = parse_selection(query.multi_items(), self._configured_upstreams())
         except (SelectionError, UnicodeDecodeError) as exc:
             message = str(exc) if isinstance(exc, SelectionError) else "invalid query string"
             response = JSONResponse({"error": message}, status_code=400)
@@ -114,7 +116,7 @@ def create_app(
         stateless=False,
         security_settings=security,
     )
-    endpoint = _StreamableHTTPApp(manager, tuple(config.upstreams))
+    endpoint = _StreamableHTTPApp(manager, lambda: tuple(broker.config.upstreams))
 
     async def watch_config() -> None:
         assert watched_path is not None
