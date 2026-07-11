@@ -88,9 +88,21 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 - **No request-delivered credentials.** Credentials must never be accepted through URLs, query parameters, command arguments, logs, or committed profiles. Runtime configuration may reference broker-process environment variables without exposing their values.
 - **Optional agent selection.** A bare downstream MCP URL exposes all configured upstreams. Explicit tool or upstream selectors narrow that set; reverse-only selection intentionally follows future profile additions and is not least privilege.
 
-## Session-start tooling
+## Codebase exploration — mandatory graph-first workflow
 
-- Use `code-review-graph` MCP tools for structural queries (callers, blast radius, code review) before scanning files. See the `code-review-graph` skill for tool selection and pitfalls. Projects that opt in register their repo in `~/.code-review-graph/registry.json`; pass the registered `repo_root` on tool calls.
+For source-code discovery, tracing, debugging, review, or impact analysis,
+MUST use the `code-review-graph` MCP before `search_files`, `read_file`, grep,
+glob, find, or directory scans.
+
+1. Load the `code-review-graph` skill.
+2. Call `get_minimal_context_tool` first with the explicit `repo_root`.
+3. Use the recommended graph query to identify symbols, relationships, flows,
+   affected files, and tests.
+4. Only then use targeted file reads to verify exact implementation details.
+
+Do not silently bypass the graph. If unavailable or stale, retry with
+`repo_root`, build/update it when possible, and report the failure before
+falling back to targeted file tools.
 
 ## Child DOX Index
 
