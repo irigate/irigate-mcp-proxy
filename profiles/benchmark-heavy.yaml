@@ -15,20 +15,57 @@ upstreams:
     call_timeout_seconds: 30
     idle_timeout_seconds: 300
 
-  code-review-graph:
+  github:
     transport: stdio
-    command: uvx
-    args: ["code-review-graph", "serve"]
-    env: {}
+    command: docker
+    args: ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN}
     shareable: false
     concurrency: parallel
     call_timeout_seconds: 60
     idle_timeout_seconds: 300
 
-  shadcn:
+  filesystem:
     transport: stdio
     command: npx
-    args: ["-y", "@shadcn-ui/mcp"]
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "{workspace}"]
+    env: {}
+    inputs:
+      workspace:
+        type: directory
+        required: true
+        allowed_roots:
+          - /home/raphael/src
+    shareable: false
+    concurrency: parallel
+    call_timeout_seconds: 30
+    idle_timeout_seconds: 300
+
+  playwright:
+    transport: stdio
+    command: npx
+    args: ["@playwright/mcp@latest"]
+    env: {}
+    shareable: false
+    concurrency: serial
+    call_timeout_seconds: 60
+    idle_timeout_seconds: 300
+
+  chrome-devtools:
+    transport: stdio
+    command: npx
+    args: ["chrome-devtools-mcp@latest"]
+    env: {}
+    shareable: false
+    concurrency: serial
+    call_timeout_seconds: 60
+    idle_timeout_seconds: 300
+
+  astro-docs:
+    transport: stdio
+    command: npx
+    args: ["-y", "mcp-remote", "https://mcp.docs.astro.build/mcp"]
     env: {}
     shareable: false
     concurrency: parallel

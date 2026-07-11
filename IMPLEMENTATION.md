@@ -16,8 +16,8 @@ It is not an enterprise gateway. Remote access, tenant identity, authorization, 
 1. `config.load_config()` parses a YAML profile into typed models, rejects duplicate keys and unknown fields, and resolves only `${ENV_NAME}` references from the broker process environment.
 2. `app.create_app()` exposes MCP Streamable HTTP on a loopback address, enforces the Origin policy, and watches the selected profile for background reloads. Local non-browser clients may omit `Origin`; malformed or non-loopback origins are rejected.
 3. `Broker` validates each agent selection, activates only selected upstreams, filters `tools/list`, routes exact `<upstream-key>__<tool-name>` calls, and atomically swaps successfully prepared active-upstream changes.
-4. `Broker` selects a shared worker only when sharing was requested and qualification passed. Otherwise it creates workers scoped to downstream sessions.
-5. `UpstreamWorker` owns one stdio MCP process/session, concurrency control, bounded calls, per-process idle expiry, and termination.
+4. `Broker` selects a shared worker only when sharing was requested and qualification passed. Otherwise it creates workers scoped to downstream sessions and stable fingerprints of canonical inputs.
+5. `UpstreamWorker` owns one stdio MCP process/session, worker-local argument rendering, concurrency control, bounded calls, per-process idle expiry, and termination.
 6. `RuntimeMetrics` records metadata-only counters and atomically refreshes the configured JSON report.
 7. `AuditLog` writes exactly one metadata-only JSON-line record for every completed or rejected call.
 8. `migration` discovers common installed-agent configuration paths or accepts one explicit file, converts selected stdio definitions into isolated Irigate upstreams, and rewrites each agent to use the loopback Streamable HTTP endpoint.
@@ -35,6 +35,7 @@ Profiles define:
 - Required per-upstream idle timeout, call timeout, and degradation thresholds.
 - Optional runtime-report path.
 - Optional per-upstream working directory, passed unchanged to the stdio process launcher.
+- Optional required `workspace` directory input for a non-shareable upstream, with canonical allowed-root patterns and one standalone `{workspace}` argument placeholder.
 
 Constraints:
 
@@ -44,6 +45,19 @@ Constraints:
 - Unknown environment references fail during loading.
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields, duplicate YAML keys, unsupported transports, and non-loopback binds are errors.
+
+### Filesystem workspace inputs
+
+Per-session filesystem workspaces are a narrow dynamic-input contract:
+
+- `WorkspaceInputConfig` accepts only the reserved `workspace` input with `type: directory`, an explicit boolean `required`, and a non-empty `allowed_roots` tuple.
+- Dynamic inputs require `shareable: false` and exactly one argument whose complete value is `{workspace}`. The placeholder is rejected when no input is declared.
+- Configured roots are absolute path-segment patterns. Literal segments match exactly, `*` matches one segment, and `**` matches zero or more segments; a matched root also permits descendants.
+- A leading `~` and braced `${ENV_NAME}` references expand while loading the profile. Other shell forms, unset names, traversal segments, partial wildcards, and wildcard-bearing environment values fail validation.
+- `workspace.resolve_workspace()` requires an explicit absolute path, resolves it with `strict=True`, requires a directory, canonicalizes each pattern's literal prefix, and performs memoized segment matching without shell glob expansion or filesystem enumeration.
+- Authorization compares canonical path segments, so lexical traversal, sibling-prefix confusion, and final or intermediate symlink escapes do not inherit access from the untrusted path string.
+
+`selection.py` separates namespaced inputs from selectors, requires an explicit positive upstream or exact-tool selection, rejects ambiguous forms, and stores canonical values in immutable selection bindings. The Streamable HTTP adapter records those bindings when the MCP session ID is issued and rejects any later request that presents a different mapping. `Broker` extracts the selected upstream's canonical values, keys isolated workers by `(session, upstream, input fingerprint)`, and passes only the worker-local mapping to `UpstreamWorker`. The worker renders `{workspace}` into a fresh argument list immediately before constructing `StdioServerParameters`; frozen profile arguments remain unchanged. Raw workspace values are excluded from audit and runtime-report metadata.
 
 Runtime reload behavior:
 
@@ -66,7 +80,7 @@ Context7 is the qualified shared upstream in `profiles/mvp.yaml`. Its qualifier 
 
 ## Session, concurrency, and shutdown contracts
 
-- Non-shareable workers are keyed by downstream session and are never reused across sessions.
+- Non-shareable workers are keyed by downstream session, upstream, and a stable fingerprint of canonical inputs. They are never reused across sessions or input contexts.
 - Shared workers are reused only within one broker process and only after qualification.
 - `serial` workers admit one call at a time; `parallel` workers permit concurrent calls.
 - Locks are per upstream. A slow or failed upstream must not block unrelated upstreams.
@@ -99,12 +113,13 @@ Neither surface may contain arguments, results, environment values, commands, au
 ## Module ownership
 
 - `src/irigate/models.py` — typed configuration and field validation.
+- `src/irigate/workspace.py` — strict canonical directory resolution and segment-based allowed-root authorization.
 - `src/irigate/config.py` — duplicate-safe YAML loading and environment-reference resolution.
 - `src/irigate/migration.py` — installed-agent config discovery, format-specific conversion, backups, and atomic replacement.
 - `src/irigate/app.py` — loopback Streamable HTTP application, selector and agent-label propagation, Origin enforcement, and profile watching.
-- `src/irigate/broker.py` — deferred activation, selection-scoped tool aggregation, exact routing, worker selection, atomic reload, degradation, and shutdown coordination.
+- `src/irigate/broker.py` — deferred activation, selection-scoped tool aggregation, exact routing, input-fingerprinted worker selection, atomic reload, degradation, and shutdown coordination.
 - `src/irigate/selection.py` — typed selector parsing, normalization, and fail-closed set computation.
-- `src/irigate/upstream.py` — stdio worker lifecycle, concurrency, bounded calls, and process cleanup.
+- `src/irigate/upstream.py` — stdio worker lifecycle, worker-local argument rendering, concurrency, bounded calls, and process cleanup.
 - `src/irigate/qualification.py` — generic checks, qualifier registry, and sharing admission.
 - `src/irigate/runtime_report.py` — counters and atomic metadata-only snapshots.
 - `src/irigate/audit.py` — one metadata-only call record per outcome.
@@ -181,7 +196,7 @@ uv run --frozen python scripts/compatibility.py --config profiles/mvp.yaml
 uv run --frozen python scripts/benchmark.py --config profiles/benchmark-heavy.yaml --clients 1,5,20 --repetitions 3
 ```
 
-The full test suite must prove default-all behavior, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output.
+The full test suite must prove default-all behavior, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output. Focused configuration and workspace tests additionally prove input-schema rejection, pattern expansion, canonical traversal handling, `*`/`**` semantics, and symlink-escape rejection.
 
 Migration tests must prove common-path discovery, explicit-file-only scope, JSON/YAML/TOML preservation, correct per-agent HTTP fields, environment-reference safety, collision rejection before writes, and adjacent backups.
 

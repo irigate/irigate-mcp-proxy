@@ -19,6 +19,17 @@ Irigate is a loopback-only MCP broker. It lets local agent sessions share explic
 | **◇** | **Metadata-only observability**<br>Record outcomes, durations, reuse, failures, and process counts without payloads, commands, or credentials. | **⚖** | **Measured compatibility**<br>Run qualification, multi-client compatibility checks, and repeatable 1/5/20-client resource benchmarks. |
 | **⌘** | **Direct CLI tool calls**<br>Invoke one namespaced MCP tool from automation without starting the HTTP listener. | **▦** | **Process and usage inspection**<br>Use `irigate ps` to see live instances, busy/idle state, idle duration and timeout, and per-agent usage. |
 
+## Development highlights
+
+Filesystem workspace inputs bind an isolated MCP process to one client-selected project directory:
+
+- Profiles can declare one reserved, required `workspace` input with `type: directory`, a non-empty `allowed_roots` list, and exactly one standalone `{workspace}` argument placeholder.
+- `allowed_roots` supports absolute literal roots plus complete `*` and `**` path segments. Profile-side leading `~` and `${ENV_NAME}` references are expanded under strict rules; environment-derived roots must be absolute and wildcard-free.
+- Workspace authorization resolves the requested directory and each literal pattern prefix canonically before matching. Traversal, sibling-prefix confusion, nonexistent paths, files, and symlink escapes fail closed.
+- A valid namespaced input is fixed for the downstream MCP session, rendered into a worker-local argument list, and included in the isolated worker's non-raw context fingerprint.
+
+Namespaced `<upstream>.workspace` values are accepted only when that upstream is positively selected by `upstreams=` or required by an exact `tools=` selector. Bare and reverse-only URLs cannot supply dynamic inputs, and workspace values never enter audit records or runtime reports.
+
 ## Problem hypothesis
 
 MCP-capable coding agents commonly start stdio MCP servers as child processes. Several concurrent Hermes, Claude Code, Codex, or worker sessions can therefore start duplicate copies of the same expensive server.
@@ -169,9 +180,10 @@ An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>
 | --- | --- | --- | --- |
 | `transport` | No | `stdio` | Only `stdio` is supported. |
 | `command` | Yes | — | One executable token. Put command arguments in `args`. |
-| `args` | No | `[]` | Static argument list. Environment references and credentials are not accepted here. |
+| `args` | No | `[]` | Argument list. Environment references and credentials are not accepted. An upstream with `inputs.workspace` must contain exactly one standalone `{workspace}` argument, rendered from the canonical session input before process startup. |
 | `cwd` | No | Inherit broker directory | Working directory for the stdio process. Migration resolves relative agent paths against the owning user or project directory. |
 | `env` | No | `{}` | Child environment mapping. Every value must be an explicit `${BROKER_ENV_NAME}` reference. |
+| `inputs` | No | `{}` | Per-session input declaration. Only a required `workspace` directory is supported. It needs non-empty `allowed_roots`, requires `shareable: false`, and is immutable after the MCP session is established. |
 | `shareable` | No | `false` | Requests one process shared across downstream sessions. Sharing is admitted only by a registered qualifier. |
 | `qualifier` | Conditional | — | Required when `shareable: true`; rejected otherwise. Currently registered: `context7-readonly-v3` for the `context7` key. |
 | `concurrency` | No | `serial` | `serial` executes one call at a time; `parallel` permits concurrent calls within the worker. |
@@ -244,6 +256,33 @@ http://127.0.0.1:8765/mcp?upstreams=context7,code-review-graph,!code-review-grap
 ```
 
 This selects only `context7`. Omitting both selector parameters exposes all configured upstreams unchanged. Reverse-only selection also starts from all currently configured upstreams, so profile reloads can broaden it when a new upstream is added. Prefer `tools=` for least privilege. When selection is used, provide only one `tools` or `upstreams` parameter; repeated parameters, unknown names, malformed tokens, unrelated query parameters, and an empty result are rejected. Exact tool selection never supports `!` because excluding one tool cannot avoid starting its upstream.
+
+### Filesystem workspace input
+
+An upstream may declare one required directory input named `workspace`. The benchmark profile configures the filesystem server with a `{workspace}` argument and permits canonical directories at or below `/home/raphael/src`:
+
+```yaml
+filesystem:
+  command: npx
+  args: ["-y", "@modelcontextprotocol/server-filesystem", "{workspace}"]
+  inputs:
+    workspace:
+      type: directory
+      required: true
+      allowed_roots: ["/home/raphael/src"]
+  shareable: false
+  idle_timeout_seconds: 300
+```
+
+Select the upstream positively and URL-encode the absolute workspace value:
+
+```text
+http://127.0.0.1:8766/mcp?upstreams=filesystem&filesystem.workspace=%2Fhome%2Fraphael%2Fsrc%2Frb%2Firigate-proxy
+```
+
+An exact filesystem tool selector may carry the same input. Inputs do not select upstreams by themselves: bare URLs, reverse-only selectors, excluded upstreams, missing or duplicate values, relative paths, and unknown input names are rejected before activation. The canonical mapping is bound to the first successful MCP session response; later requests for that session must present the identical mapping.
+
+Configured `allowed_roots` are absolute path-segment patterns. Literal segments match exactly, `*` matches one complete segment, and `**` matches zero or more complete segments. A matched root permits descendants. Profile-side leading `~` and braced `${ENV_NAME}` references expand at load time under strict validation, but query values never expand shell syntax. Irigate strictly resolves the requested directory before authorization, so traversal and symlink paths are judged by their canonical destination.
 
 Add an explicit `agent=` label to attribute calls in the runtime report:
 
