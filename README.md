@@ -170,6 +170,7 @@ An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>
 | `transport` | No | `stdio` | Only `stdio` is supported. |
 | `command` | Yes | — | One executable token. Put command arguments in `args`. |
 | `args` | No | `[]` | Static argument list. Environment references and credentials are not accepted here. |
+| `cwd` | No | Inherit broker directory | Working directory for the stdio process. Migration resolves relative agent paths against the owning user or project directory. |
 | `env` | No | `{}` | Child environment mapping. Every value must be an explicit `${BROKER_ENV_NAME}` reference. |
 | `shareable` | No | `false` | Requests one process shared across downstream sessions. Sharing is admitted only by a registered qualifier. |
 | `qualifier` | Conditional | — | Required when `shareable: true`; rejected otherwise. Currently registered: `context7-readonly-v3` for the `context7` key. |
@@ -187,6 +188,20 @@ Environment values are resolved from the broker process without being written in
 export CONTEXT7_API_KEY='...'
 uv run --frozen irigate --config profiles/local.yaml --check
 ```
+
+### Migrate installed agent configurations
+
+`irigate migrate` discovers user and current-project MCP configurations for Claude Code, Codex CLI, Cursor, Gemini CLI, and Hermes. It presents an interactive numbered selection, moves each selected stdio server into the Irigate profile, and replaces those direct server entries with one agent-specific Streamable HTTP connection to Irigate. Existing remote MCP entries and unrelated agent settings remain in place.
+
+```bash
+uv run --frozen irigate migrate --config ~/.config/irigate/config.yaml
+uv run --frozen irigate migrate --all --config ~/.config/irigate/config.yaml
+uv run --frozen irigate migrate ~/.cursor/mcp.json --config ~/.config/irigate/config.yaml
+```
+
+Providing a file bypasses discovery and migrates only that file. Non-interactive use requires either a file or `--all`. Existing files receive adjacent `.irigate.bak` backups before replacement; a pre-existing backup stops the migration rather than overwriting evidence. New upstreams default to isolated, serial execution with a 30-second call timeout and 300-second idle timeout. Existing remote MCP servers are not moved.
+
+Agent-local environment values are never copied into the Irigate profile. Every migrated child environment variable becomes an explicit `${ENV_NAME}` broker reference, and that variable must already be exported in the environment running the migration. The same environment must be available when Irigate runs. Conflicting normalized upstream names or unsupported configuration shapes fail before any file changes.
 
 While serving, Irigate watches the selected profile. Changed active upstreams must initialize successfully before routing switches. Added and changed dormant upstreams remain stopped until selected. Invalid updates leave the last valid active configuration available. Changes to `host` or `port` require restarting the broker.
 

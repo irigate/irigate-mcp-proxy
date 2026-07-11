@@ -20,6 +20,7 @@ It is not an enterprise gateway. Remote access, tenant identity, authorization, 
 5. `UpstreamWorker` owns one stdio MCP process/session, concurrency control, bounded calls, per-process idle expiry, and termination.
 6. `RuntimeMetrics` records metadata-only counters and atomically refreshes the configured JSON report.
 7. `AuditLog` writes exactly one metadata-only JSON-line record for every completed or rejected call.
+8. `migration` discovers common installed-agent configuration paths or accepts one explicit file, converts selected stdio definitions into isolated Irigate upstreams, and rewrites each agent to use the loopback Streamable HTTP endpoint.
 
 ## Configuration contract
 
@@ -33,6 +34,7 @@ Profiles define:
 - Explicit `serial` or `parallel` concurrency.
 - Required per-upstream idle timeout, call timeout, and degradation thresholds.
 - Optional runtime-report path.
+- Optional per-upstream working directory, passed unchanged to the stdio process launcher.
 
 Constraints:
 
@@ -98,6 +100,7 @@ Neither surface may contain arguments, results, environment values, commands, au
 
 - `src/irigate/models.py` — typed configuration and field validation.
 - `src/irigate/config.py` — duplicate-safe YAML loading and environment-reference resolution.
+- `src/irigate/migration.py` — installed-agent config discovery, format-specific conversion, backups, and atomic replacement.
 - `src/irigate/app.py` — loopback Streamable HTTP application, selector and agent-label propagation, Origin enforcement, and profile watching.
 - `src/irigate/broker.py` — deferred activation, selection-scoped tool aggregation, exact routing, worker selection, atomic reload, degradation, and shutdown coordination.
 - `src/irigate/selection.py` — typed selector parsing, normalization, and fail-closed set computation.
@@ -144,6 +147,15 @@ Neither surface may contain arguments, results, environment values, commands, au
 3. Add sentinel tests covering arguments, results, and broker environment values.
 4. Preserve one audit record per call outcome and atomic runtime-report writes.
 
+### Add an agent migration adapter
+
+1. Add only documented user-level or project-level configuration paths.
+2. Preserve unrelated settings and remote MCP entries; migrate stdio definitions only.
+3. Emit the agent's documented Streamable HTTP field and an explicit `agent=` label.
+4. Convert environment values to broker-process references without copying values.
+5. Validate every source and the complete resulting profile before creating backups or replacing files.
+6. Add discovery, format-preservation, explicit-file, conflict, environment, backup, and CLI tests.
+
 ### Add a transport or remote boundary
 
 Do not extend the current architecture incrementally for this. Remote bind, authentication, authorization, TLS, or a second downstream transport changes the security and product boundary and requires a separate design decision before implementation.
@@ -170,6 +182,8 @@ uv run --frozen python scripts/benchmark.py --config profiles/benchmark-heavy.ya
 ```
 
 The full test suite must prove default-all behavior, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output.
+
+Migration tests must prove common-path discovery, explicit-file-only scope, JSON/YAML/TOML preservation, correct per-agent HTTP fields, environment-reference safety, collision rejection before writes, and adjacent backups.
 
 `irigate tools --config <profile>` initializes every configured upstream, prints one namespaced tool name per line, and closes all discovery workers before exiting. It is runtime discovery rather than static validation, so package downloads, network access, and referenced environment variables may be required.
 
