@@ -1,0 +1,52 @@
+name: Deploy site
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "site/**"
+      - "assets/**"
+      - "README.md"
+      - "IMPLEMENTATION.md"
+      - "MARKET-RESEARCH.md"
+      - ".github/workflows/site-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build static site
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install, verify, and upload site
+        uses: withastro/action@v6
+        with:
+          path: site
+          node-version: 24
+          build-cmd: pnpm verify
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5

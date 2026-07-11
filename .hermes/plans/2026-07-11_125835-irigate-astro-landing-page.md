@@ -272,9 +272,10 @@ Content schemas must require unique title, description, and SEO description fiel
 | Phase 3 — implement typed Markdown/MDX content | Done | Committed as `9833c20`. |
 | Phase 4 — add SEO assets and generated crawler files | Done | Committed as `5cbe7bd`. |
 | Phase 5 — add deterministic built-site verification | Done | Committed as `89664bb`. |
-| Phase 6 — add pull-request and push validation workflow | Done | YAML and site gates passed; local `act` requires a Docker daemon. Commit checkpoint pending. |
-| Phase 7 — add GitHub Pages deployment workflow | Todo | Start after the Phase 6 commit. |
-| Phases 8–10 | Todo | Start only after the preceding phase commit. |
+| Phase 6 — add pull-request and push validation workflow | Done | Committed as `b782225`; local `act` requires a Docker daemon. |
+| Phase 7 — add GitHub Pages deployment workflow | Done | YAML and site gates passed; local `act` requires a Docker daemon. Commit checkpoint pending. |
+| Phase 8 — configure and verify the custom domain | Gated | Requires the four Phase 0 inputs in `GITHUB-PAGES.md`. |
+| Phases 9–10 | Todo | Start only after the preceding phase commit. |
 
 ### Phase 0 — confirm open deployment inputs (gate, not a build phase)
 
