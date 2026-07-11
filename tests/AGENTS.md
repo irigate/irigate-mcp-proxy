@@ -6,7 +6,7 @@ Executable contracts for Irigate configuration, background reload, transport, ro
 
 ## Ownership
 
-- `test_*.py` files own the behavioral contracts documented in `IMPLEMENTATION.md`, including CLI tool discovery, calls and process reports, agent attribution, busy/idle/stopped transitions, selector parsing, selected-only activation, and independent shared and isolated worker idle expiry.
+- `test_*.py` files own the behavioral contracts documented in `IMPLEMENTATION.md`, including configuration-path precedence, CLI tool discovery, calls and process reports, agent attribution, busy/idle/stopped transitions, selector parsing, selected-only activation, and independent shared and isolated worker idle expiry.
 - `test_reload.py` owns connection-preserving active replacement, dormant reload behavior, and failed-reload fallback.
 - `fixtures/` owns credential-free echo, state, and Context7-shaped MCP servers used only by tests.
 - `helpers.py` owns loopback test-server startup and typed test-profile construction.

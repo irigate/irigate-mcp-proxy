@@ -3,9 +3,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from collections.abc import Sequence
 from datetime import datetime, timezone
+from pathlib import Path
 
 import uvicorn
 
@@ -17,9 +19,21 @@ from irigate.qualification import qualify_config
 from irigate.selection import parse_selection
 
 
+CONFIG_ENVIRONMENT_VARIABLE = "IRIGATE_CONFIG"
+DEFAULT_CONFIG_PATH = Path("~/.config/irigate/config.yaml")
+
+
+def resolve_config_path(argument: str | None) -> Path:
+    configured = argument or os.environ.get(CONFIG_ENVIRONMENT_VARIABLE)
+    return Path(configured).expanduser() if configured else DEFAULT_CONFIG_PATH.expanduser()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="irigate")
-    parser.add_argument("--config", help="YAML profile path")
+    parser.add_argument(
+        "--config",
+        help="YAML profile path (overrides IRIGATE_CONFIG and the default)",
+    )
     parser.add_argument(
         "--check",
         action="store_true",
@@ -34,13 +48,15 @@ def build_parser() -> argparse.ArgumentParser:
     qualify = subcommands.add_parser(
         "qualify", help="qualify requested sharing without serving clients"
     )
-    qualify.add_argument("--config", required=True, help="YAML profile path")
+    qualify.add_argument(
+        "--config", default=argparse.SUPPRESS, help="YAML profile path"
+    )
     tools = subcommands.add_parser(
         "tools", help="start configured upstreams and list namespaced tools"
     )
-    tools.add_argument("--config", required=True, help="YAML profile path")
+    tools.add_argument("--config", default=argparse.SUPPRESS, help="YAML profile path")
     call = subcommands.add_parser("call", help="call one namespaced MCP tool")
-    call.add_argument("--config", required=True, help="YAML profile path")
+    call.add_argument("--config", default=argparse.SUPPRESS, help="YAML profile path")
     call.add_argument("tool", help="namespaced tool name")
     call.add_argument(
         "--arguments",
@@ -49,7 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="tool arguments as a JSON object (default: {})",
     )
     ps = subcommands.add_parser("ps", help="show MCP upstream and agent usage")
-    ps.add_argument("--config", required=True, help="YAML profile path")
+    ps.add_argument("--config", default=argparse.SUPPRESS, help="YAML profile path")
     ps.add_argument("--json", action="store_true", help="print the runtime report as JSON")
     return parser
 
@@ -190,10 +206,9 @@ def format_process_report(report: dict[str, object]) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.config is None:
-        build_parser().error("--config is required")
+    config_path = resolve_config_path(args.config)
     try:
-        config = load_config(args.config)
+        config = load_config(config_path)
         if args.command != "ps":
             config.resolve_environment()
     except ConfigurationError as exc:
@@ -265,7 +280,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         create_app(
             config,
             require_qualified_sharing=args.require_qualified_sharing,
-            config_path=args.config,
+            config_path=config_path,
         ),
         host=config.host,
         port=config.port,

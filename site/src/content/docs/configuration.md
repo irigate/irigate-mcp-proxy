@@ -10,7 +10,7 @@ route:
 source: "https://github.com/irigate/irigate-mcp-proxy/blob/main/IMPLEMENTATION.md"
 ---
 
-Irigate reads one YAML profile selected with `--config`. Profiles are validated before any upstream process starts.
+Irigate reads `~/.config/irigate/config.yaml` by default. `IRIGATE_CONFIG` selects another file, and an explicit `--config` argument overrides both. Profiles are validated before any upstream process starts.
 
 ## Broker fields
 

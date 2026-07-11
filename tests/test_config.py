@@ -103,6 +103,74 @@ def test_cli_logs_actionable_error_for_missing_broker_fields(tmp_path: Path) -> 
     assert "upstreams:" in result.stderr
 
 
+def test_cli_uses_default_config_path(tmp_path: Path) -> None:
+    config_path = tmp_path / ".config" / "irigate" / "config.yaml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(VALID_PROFILE, encoding="utf-8")
+    env = {**os.environ, "HOME": str(tmp_path), "TEST_CONTEXT7_API_KEY": "synthetic"}
+    env.pop("IRIGATE_CONFIG", None)
+
+    result = subprocess.run(
+        [sys.executable, "-m", "irigate", "--check"],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "profile=test-profile" in result.stdout
+
+
+def test_cli_uses_config_path_from_environment(tmp_path: Path) -> None:
+    config_path = write_profile(tmp_path, VALID_PROFILE)
+    env = {
+        **os.environ,
+        "IRIGATE_CONFIG": str(config_path),
+        "TEST_CONTEXT7_API_KEY": "synthetic",
+    }
+
+    result = subprocess.run(
+        [sys.executable, "-m", "irigate", "--check"],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "profile=test-profile" in result.stdout
+
+
+def test_cli_config_argument_overrides_environment(tmp_path: Path) -> None:
+    environment_path = tmp_path / "environment.yaml"
+    environment_path.write_text(
+        VALID_PROFILE.replace("name: test-profile", "name: environment-profile"),
+        encoding="utf-8",
+    )
+    argument_path = tmp_path / "argument.yaml"
+    argument_path.write_text(
+        VALID_PROFILE.replace("name: test-profile", "name: argument-profile"),
+        encoding="utf-8",
+    )
+    env = {
+        **os.environ,
+        "IRIGATE_CONFIG": str(environment_path),
+        "TEST_CONTEXT7_API_KEY": "synthetic",
+    }
+
+    result = subprocess.run(
+        [sys.executable, "-m", "irigate", "--config", str(argument_path), "--check"],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "profile=argument-profile" in result.stdout
+
+
 @pytest.mark.parametrize("command", ["", "   ", "python -m echo_server"])
 def test_rejects_invalid_commands(tmp_path: Path, command: str) -> None:
     profile = VALID_PROFILE.replace("command: python3", f"command: '{command}'")

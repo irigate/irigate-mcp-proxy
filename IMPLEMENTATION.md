@@ -23,6 +23,8 @@ It is not an enterprise gateway. Remote access, tenant identity, authorization, 
 
 ## Configuration contract
 
+The CLI resolves the profile path in this order: explicit `--config`, the `IRIGATE_CONFIG` environment variable, then `~/.config/irigate/config.yaml`. The environment variable names the complete configuration file, not only its directory.
+
 Profiles define:
 
 - Loopback host and port.

@@ -79,7 +79,7 @@ uv run --frozen irigate --config profiles/mvp.yaml --check
 
 ## Configuration
 
-Irigate reads one YAML profile selected with `--config`. Profiles are validated before any upstream process starts: unknown fields, duplicate YAML keys, unsupported transports, invalid routing keys, non-loopback listeners, and missing environment references are rejected.
+Irigate reads `~/.config/irigate/config.yaml` by default. Set `IRIGATE_CONFIG` to use another file, or pass `--config`; the command-line argument takes precedence over the environment variable. Profiles are validated before any upstream process starts: unknown fields, duplicate YAML keys, unsupported transports, invalid routing keys, non-loopback listeners, and missing environment references are rejected.
 
 ```yaml
 name: local
@@ -115,7 +115,7 @@ upstreams:
 
 ### Required broker-field example
 
-`name` and `upstreams` belong in the broker profile selected by `--config`. They are not HTTP query parameters, and Irigate does not accept `--name` or `--upstreams` CLI flags. The smallest useful profile includes both required broker fields and the two required fields for each upstream:
+`name` and `upstreams` belong in the selected broker profile. They are not HTTP query parameters, and Irigate does not accept `--name` or `--upstreams` CLI flags. The smallest useful profile includes both required broker fields and the two required fields for each upstream:
 
 ```yaml
 name: local-development
@@ -128,14 +128,24 @@ upstreams:
 
 Choose `name` as a stable identifier for where or why the profile runs, such as `local-development`, `project-docs`, or `benchmark`. It appears in validation output and runtime reports but does not change routing. Choose each upstream key, such as `context7`, as the stable tool namespace: the key becomes the prefix in `<upstream-key>__<tool-name>`. Add every MCP server Irigate should be able to expose under `upstreams`; at least one entry is required.
 
-Save that profile, for example as `profiles/local.yaml`, then pass it when starting or inspecting Irigate:
+Save that profile as `~/.config/irigate/config.yaml` to use it by default:
 
 ```bash
-uv run --frozen irigate --config profiles/local.yaml --check
-uv run --frozen irigate --config profiles/local.yaml
+mkdir -p ~/.config/irigate
+cp profiles/local.yaml ~/.config/irigate/config.yaml
+uv run --frozen irigate --check
+uv run --frozen irigate
 ```
 
 The first command validates the required fields without starting upstreams. The second starts the broker with profile name `local-development` and the configured `context7` upstream.
+
+For a different profile, set its full path in the environment or override it for one invocation:
+
+```bash
+export IRIGATE_CONFIG="$HOME/.config/irigate/work.yaml"
+uv run --frozen irigate --check
+uv run --frozen irigate --config profiles/benchmark-heavy.yaml --check
+```
 
 If either broker field is absent, Irigate exits before starting the HTTP listener and writes an actionable configuration error to stderr with a minimal example.
 
