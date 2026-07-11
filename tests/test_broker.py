@@ -40,7 +40,9 @@ async def test_upstream_initialization_failure_is_safe() -> None:
 
 
 async def test_call_timeout_returns_error() -> None:
-    async with running_broker({"echo": upstream(timeout=0.05)}) as url:
+    async with running_broker(
+        {"echo": upstream(timeout=0.05)}, selector="upstreams=echo"
+    ) as url:
         async with streamable_http_client(url) as streams:
             async with ClientSession(streams[0], streams[1]) as session:
                 await session.initialize()
@@ -53,7 +55,10 @@ async def test_call_timeout_returns_error() -> None:
 
 
 async def test_upstream_crash_does_not_stop_another_upstream() -> None:
-    async with running_broker({"crash": upstream(), "healthy": upstream()}) as url:
+    async with running_broker(
+        {"crash": upstream(), "healthy": upstream()},
+        selector="upstreams=crash,healthy",
+    ) as url:
         async with streamable_http_client(url) as streams:
             async with ClientSession(streams[0], streams[1]) as session:
                 await session.initialize()

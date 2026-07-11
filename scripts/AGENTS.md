@@ -16,6 +16,7 @@ Repeatable compatibility and resource-evidence harnesses for the production Irig
 - Benchmark process counts use baseline-differenced `/proc` command signatures and reconcile logical instance roots with the runtime report.
 - Harness failures, orphan processes, and report discrepancies are hard failures; call errors remain measured evidence.
 - Context7 measurements cover identical credential-free, workspace-free contexts only and must not be extrapolated to isolated upstreams.
+- Broker client URLs use an explicit exact-tool selector for the reviewed Context7 probe.
 - Generated JSON evidence stays under `.irigate/` and is not committed.
 
 ## Work Guidance

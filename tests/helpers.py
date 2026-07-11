@@ -50,7 +50,9 @@ def config_for(port: int, upstreams: dict[str, dict[str, Any]]) -> BrokerConfig:
 
 
 @asynccontextmanager
-async def running_broker(upstreams: dict[str, dict[str, Any]]) -> AsyncIterator[str]:
+async def running_broker(
+    upstreams: dict[str, dict[str, Any]], *, selector: str
+) -> AsyncIterator[str]:
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     sock.listen()
@@ -68,7 +70,7 @@ async def running_broker(upstreams: dict[str, dict[str, Any]]) -> AsyncIterator[
             await asyncio.sleep(0.01)
         else:
             raise TimeoutError("test broker did not start")
-        yield f"http://127.0.0.1:{port}/mcp"
+        yield f"http://127.0.0.1:{port}/mcp?{selector}"
     finally:
         server.should_exit = True
         await asyncio.wait_for(task, timeout=10)

@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from contextvars import ContextVar, Token
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,8 @@ from mcp.server.lowlevel import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
+from starlette.datastructures import QueryParams
+from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.types import Receive, Scope, Send
 
@@ -18,16 +21,43 @@ from irigate import __version__
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import ConfigurationError, load_config
 from irigate.models import BrokerConfig
+from irigate.selection import Selection, SelectionError, parse_selection
 
 logger = logging.getLogger(__name__)
+_request_selection: ContextVar[Selection | None] = ContextVar(
+    "irigate_request_selection", default=None
+)
+
+
+def current_selection() -> Selection:
+    selection = _request_selection.get()
+    if selection is None:
+        raise RuntimeError("MCP request has no validated selector")
+    return selection
 
 
 class _StreamableHTTPApp:
-    def __init__(self, manager: StreamableHTTPSessionManager) -> None:
+    def __init__(
+        self, manager: StreamableHTTPSessionManager, configured_upstreams: tuple[str, ...]
+    ) -> None:
         self._manager = manager
+        self._configured_upstreams = configured_upstreams
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        await self._manager.handle_request(scope, receive, send)
+        try:
+            query = QueryParams(scope.get("query_string", b"").decode("utf-8"))
+            selection = parse_selection(query.multi_items(), self._configured_upstreams)
+        except (SelectionError, UnicodeDecodeError) as exc:
+            message = str(exc) if isinstance(exc, SelectionError) else "invalid query string"
+            response = JSONResponse({"error": message}, status_code=400)
+            await response(scope, receive, send)
+            return
+
+        token: Token[Selection | None] = _request_selection.set(selection)
+        try:
+            await self._manager.handle_request(scope, receive, send)
+        finally:
+            _request_selection.reset(token)
 
 
 def create_app(
@@ -59,10 +89,12 @@ def create_app(
 
     @server.list_tools()
     async def list_tools():
+        current_selection()
         return broker.tools
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]):
+        current_selection()
         session_key = id(server.request_context.session)
         return await broker.call_tool(name, arguments, session_key)
 
@@ -84,7 +116,7 @@ def create_app(
         stateless=False,
         security_settings=security,
     )
-    endpoint = _StreamableHTTPApp(manager)
+    endpoint = _StreamableHTTPApp(manager, tuple(config.upstreams))
 
     async def watch_config() -> None:
         assert watched_path is not None

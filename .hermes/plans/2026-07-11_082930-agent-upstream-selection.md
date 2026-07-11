@@ -9,7 +9,7 @@ Let each downstream MCP agent explicitly select which Irigate upstreams or exact
 | Phase | Status | Checkpoint |
 | --- | --- | --- |
 | 1. Define and test selector parsing | Done | Committed checkpoint |
-| 2. Carry selection through Streamable HTTP requests | Todo | Requires Phase 1 commit |
+| 2. Carry selection through Streamable HTTP requests | Done | Committed checkpoint |
 | 3. Defer upstream activation and filter tool exposure | Todo | Requires Phase 2 commit |
 | 4. Make reload selection-aware | Todo | Requires Phase 3 commit |
 | 5. Update user and implementation documentation | Todo | Requires Phase 4 commit |
@@ -127,6 +127,8 @@ Commit checkpoint:
 ### Phase 2 — Carry selection through Streamable HTTP requests
 
 Objective: make every MCP operation execute with a validated request-local selector.
+
+Current boundary: transport validation and request-local propagation are complete. Selection-aware broker listing and dispatch remain in Phase 3 because those broker APIs are introduced with deferred activation. First-party compatibility and benchmark clients now send exact selectors so this breaking endpoint contract does not leave repository harnesses unusable.
 
 Files:
 

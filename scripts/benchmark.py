@@ -190,7 +190,7 @@ async def broker_trial(config: BrokerConfig, clients: int, report_path: Path) ->
             await server_task
             raise RuntimeError("benchmark broker exited before startup")
         await asyncio.sleep(0.01)
-    url = f"http://127.0.0.1:{port}/mcp"
+    url = f"http://127.0.0.1:{port}/mcp?tools=context7__{TOOL}"
     release = asyncio.Event()
     ready = asyncio.Condition()
     ready_count = 0

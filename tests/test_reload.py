@@ -70,7 +70,9 @@ async def test_background_reload_restarts_changed_upstream_without_disconnect(
         else:
             raise TimeoutError("test broker did not start")
 
-        async with streamable_http_client(f"http://127.0.0.1:{port}/mcp") as streams:
+        async with streamable_http_client(
+            f"http://127.0.0.1:{port}/mcp?upstreams=fixture"
+        ) as streams:
             async with ClientSession(streams[0], streams[1]) as session:
                 await session.initialize()
                 before = await session.call_tool("fixture__repeat", {"value": "before"})

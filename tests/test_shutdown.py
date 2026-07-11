@@ -66,7 +66,9 @@ async def test_shutdown_bounds_active_call_and_cleans_processes() -> None:
 async def test_client_disconnect_then_repeated_startup_shutdown_leaves_no_orphans() -> None:
     baseline = echo_processes()
     for _ in range(3):
-        async with running_broker({"echo": upstream()}) as _url:
+        async with running_broker(
+            {"echo": upstream()}, selector="upstreams=echo"
+        ) as _url:
             pass
         await wait_for_baseline(baseline)
 

@@ -17,7 +17,7 @@ async def call(url: str, name: str, arguments: dict[str, object]):
 
 
 async def test_namespaced_tool_routes_to_exact_upstream() -> None:
-    async with running_broker({"echo": upstream()}) as url:
+    async with running_broker({"echo": upstream()}, selector="upstreams=echo") as url:
         result = await call(url, "echo__repeat", {"value": "routed"})
 
     assert result.isError is False
@@ -25,7 +25,7 @@ async def test_namespaced_tool_routes_to_exact_upstream() -> None:
 
 
 async def test_unknown_prefix_fails_without_fallback() -> None:
-    async with running_broker({"echo": upstream()}) as url:
+    async with running_broker({"echo": upstream()}, selector="upstreams=echo") as url:
         result = await call(url, "missing__repeat", {"value": "not-routed"})
 
     assert result.isError is True
@@ -33,7 +33,7 @@ async def test_unknown_prefix_fails_without_fallback() -> None:
 
 
 async def test_unknown_tool_under_known_prefix_fails() -> None:
-    async with running_broker({"echo": upstream()}) as url:
+    async with running_broker({"echo": upstream()}, selector="upstreams=echo") as url:
         result = await call(url, "echo__missing", {})
 
     assert result.isError is True

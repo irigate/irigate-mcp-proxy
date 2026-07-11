@@ -18,7 +18,7 @@ from irigate.config import load_config
 ROOT = Path(__file__).resolve().parents[1]
 HOST = "127.0.0.1"
 PORT = 8765
-URL = f"http://{HOST}:{PORT}/mcp"
+URL = f"http://{HOST}:{PORT}/mcp?tools=context7__resolve-library-id"
 REPORT = ROOT / ".irigate" / "runtime-report.json"
 ACTIVE_HERMES_HOME = Path.home() / ".hermes" / "profiles" / "hermes-vc"
 ACTIVE_CODEX_HOME = Path.home() / ".codex"
@@ -167,7 +167,7 @@ def main() -> int:
     config = load_config(args.config)
     HOST = config.host
     PORT = config.port
-    URL = f"http://{HOST}:{PORT}/mcp"
+    URL = f"http://{HOST}:{PORT}/mcp?tools=context7__resolve-library-id"
     REPORT = config.runtime_report_path
     if not REPORT.is_absolute():
         REPORT = ROOT / REPORT
