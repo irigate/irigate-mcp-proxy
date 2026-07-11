@@ -106,6 +106,7 @@ Root-owned artifacts:
 
 - `.github/workflows/site-check.yml` — Pull-request and non-main push validation for the static Astro site.
 - `.github/workflows/site-deploy.yml` — Main-branch and manual GitHub Pages deployment for the static Astro site.
+- `GITHUB-PAGES.md` — Repository-only GitHub Pages deployment maintenance guide and Phase 0 authorization record.
 - `README.md` — Current product boundary, MVP summary, and project status.
 - `IMPLEMENTATION.md` — Current runtime architecture, implementation contracts, extension workflows, and verification.
 - `MARKET-RESEARCH.md` — Market hypothesis, competitive positioning, evidence requirements, and go/no-go criteria.
