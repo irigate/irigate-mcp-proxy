@@ -42,14 +42,34 @@ The default profile starts real MCP upstreams. Its first run may download their 
 
 ## Install
 
-From a repository checkout, create the project environment from the locked dependencies:
+Install Irigate as a standard user application from a repository checkout:
+
+```bash
+uv tool install --force --from . irigate
+```
+
+`uv` installs the launcher in `~/.local/bin/irigate` and manages its dependencies in an isolated environment. Ensure `~/.local/bin` is on `PATH`, then use `irigate` without activating the project virtual environment:
+
+```bash
+irigate --help
+irigate --config profiles/mvp.yaml --check
+```
+
+Reinstall after updating the checkout, or remove the application:
+
+```bash
+uv tool install --force --from . irigate
+uv tool uninstall irigate
+```
+
+For development, create the project environment from the locked dependencies instead:
 
 ```bash
 cd irigate-proxy
 uv sync --frozen
 ```
 
-Confirm that the CLI and default profile load without starting upstream processes:
+Run the development checkout and confirm that the default profile loads without starting upstream processes:
 
 ```bash
 uv run --frozen irigate --help
