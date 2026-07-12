@@ -17,6 +17,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `upstream.py` owns one stdio process/session worker, worker-local argument rendering, bounded calls, and exact call activity transitions.
 - `qualification.py` owns generic checks and reviewed upstream-specific sharing admission.
 - `runtime_report.py` owns metadata-only counters and atomic JSON snapshots.
+- `restart.py` owns credential-free restart control state, strict process identity checks, and graceful self-replacement coordination.
 - `audit.py` owns one metadata-only JSON-line record per completed or rejected call.
 
 ## Local Contracts
@@ -37,6 +38,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Requested sharing defaults to isolated when qualification fails; strict mode aborts startup.
 - Qualification probes use fixed non-destructive surfaces and never forward client payloads.
 - Runtime reports contain counts, durations, modes, activity state, idle timing, upstream keys, and validated agent labels only.
+- Restart control documents are adjacent to configured runtime reports, contain only profile/process identity metadata, and are treated as untrusted claims until profile, configuration path, and live process identity all match.
 - A degraded shared upstream remains degraded until process restart.
 - Audit records contain timestamp, upstream key, tool name, outcome, and duration only.
 - Arguments, results, environment values, commands, and credentials never enter audit records.

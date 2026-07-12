@@ -10,6 +10,7 @@ Executable contracts for Irigate configuration, background reload, transport, ro
 - `test_reload.py` owns connection-preserving active replacement, dormant reload behavior, and failed-reload fallback.
 - `test_workspace.py` owns canonical workspace resolution, allowed-root matching, descendant authorization, traversal handling, and symlink-escape rejection.
 - `test_migration.py` owns installed-agent discovery, explicit-file scope, JSON/YAML/TOML conversion, environment safety, conflict handling, backups, and migration CLI behavior.
+- `test_restart.py` owns restart control-state validation, process identity, graceful exec ordering, CLI signaling, and replacement observation.
 - `fixtures/` owns credential-free echo, state, workspace-argument, and Context7-shaped MCP servers used only by tests.
 - `helpers.py` owns loopback test-server startup and typed test-profile construction.
 
