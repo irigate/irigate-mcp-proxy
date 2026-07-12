@@ -1,5 +1,7 @@
 # Agent-Selected MCP Upstreams Implementation Plan
 
+> Amended 2026-07-11 after the original implementation shipped. Phases 1–6 are historical and correspond to commits `6464887` through `9260c51`; Phase 7 is the open follow-up from the post-implementation audit.
+
 ## Goal
 
 Let each downstream MCP agent explicitly select which Irigate upstreams or exact namespaced tools it wants, so Irigate does not qualify or start unrelated stdio MCP servers. Support positive and reverse upstream selectors with deterministic set semantics, while keeping exact tool selection as the recommended least-privilege mode.
@@ -13,13 +15,14 @@ Let each downstream MCP agent explicitly select which Irigate upstreams or exact
 | 3. Defer upstream activation and filter tool exposure | Done | Committed checkpoint |
 | 4. Make reload selection-aware | Done | Committed checkpoint |
 | 5. Update user and implementation documentation | Done | Committed checkpoint |
-| 6. Full verification and graph review | Done | Committed checkpoint |
+| 6. Full verification and graph review | Done | Done as originally scoped; suite green at 129 tests; audit identified Phase 7 hardening gaps |
+| 7. Harden session and reload boundaries | Not started | Pending |
 
-## Current context and assumptions
+## Current implemented context and assumptions
 
 - Irigate exposes one stateful Streamable HTTP endpoint at `/mcp`.
 - `app.create_app()` creates one process-wide `Broker` and one `StreamableHTTPSessionManager`.
-- `Broker.start()` currently qualifies and starts every configured upstream before the HTTP endpoint begins serving.
+- `Broker.start()` now initializes lifecycle and reporting state without starting configured upstreams; qualification, discovery, and process startup are deferred until selection requires an upstream.
 - Tool schemas are discovered only by starting an upstream and issuing upstream `tools/list`; Irigate has no static tool manifest.
 - Upstream processes may still be shared across compatible downstream sessions after qualification. Selection limits exposure and activation; it does not create a separate broker per agent.
 - The selector is carried in the configured MCP URL, so every request made by that client includes it. No MCP protocol extension or client-specific initialization capability is required.
@@ -78,18 +81,18 @@ Reverse-only selection is convenient when an agent initializes selected MCP serv
 - The same normalized selection must be used for `tools/list` and `tools/call` on every request.
 - A call outside the request’s selection is rejected even if another connected agent already activated that upstream or tool.
 
-## Architectural approach
+## Implemented architectural approach
 
-The key change is deferred, selection-aware activation. Merely filtering `Broker.tools` is insufficient because the current `Broker.start()` has already spawned every upstream.
+The key change was deferred, selection-aware activation. Merely filtering `Broker.tools` would have been insufficient because the pre-feature `Broker.start()` spawned every upstream. Phases 1–6 implemented the following structure:
 
-1. Add a small selection module that parses one request query into a typed `ToolSelection` or `UpstreamSelection`, validates it against configured upstream keys, computes selected upstream keys, and filters discovered tools.
-2. Wrap the Streamable HTTP endpoint with an ASGI adapter that validates the query and stores the normalized selection in a request-local `ContextVar` while `StreamableHTTPSessionManager.handle_request()` runs.
-3. Change the MCP `list_tools` and `call_tool` handlers to read the current request selection and call selection-aware broker APIs.
-4. Change broker startup to initialize broker state and reporting only. Defer qualification, schema discovery, and worker creation until a selected upstream is first needed.
-5. Cache discovered schemas and qualification state per upstream process-wide. Concurrent first activation of the same upstream must be single-flight under an upstream-specific lock so two agents do not spawn duplicate discovery workers.
-6. Preserve existing sharing semantics: an admitted shared worker may be reused by multiple selected sessions; isolated workers remain keyed by downstream session.
-7. Enforce the request selection before dispatch, independently of the broker’s process-wide schema cache.
-8. Make reload selection-aware. Removed upstreams are retired. Changed upstreams that have previously been activated are prepared and swapped atomically. Never-activated added or changed upstreams remain dormant until selected. Existing reverse-only clients see newly added upstreams on their next `tools/list`, at which point activation occurs.
+1. `selection.py` parses each request into a typed `ToolSelection` or `UpstreamSelection`, validates configured upstream keys, computes selected keys, and filters discovered tools.
+2. The Streamable HTTP ASGI adapter validates the query and stores the normalized selection in a request-local `ContextVar` while `StreamableHTTPSessionManager.handle_request()` runs.
+3. MCP `list_tools` and `call_tool` handlers read the current request selection and call selection-aware broker APIs.
+4. Broker startup initializes state and reporting only. Qualification, schema discovery, and worker creation are deferred until a selected upstream is first needed.
+5. Discovered schemas and qualification state are cached per upstream process-wide. Concurrent first activation is single-flight under an upstream-specific lock.
+6. An admitted shared worker may be reused by multiple selected sessions; isolated workers remain keyed by downstream session.
+7. Request selection is enforced before dispatch, independently of the process-wide schema cache.
+8. Reload retires removed upstreams, prepares and atomically swaps changed active upstreams, and leaves added or changed dormant upstreams stopped until selection requires them.
 
 ## Step-by-step implementation plan
 
@@ -138,7 +141,7 @@ Files:
 
 Steps:
 
-1. Add failing transport tests showing `/mcp` without a selector returns HTTP 400 and never starts an upstream.
+1. Add failing transport tests showing a bare `/mcp` URL selects all configured upstreams and starts no upstream until `tools/list` or `tools/call` needs it.
 2. Add transport tests for `tools=...`, positive upstream selection, reverse-only selection, mixed selection, `%21` decoding, both selector modes, repeated selectors, and unrelated query parameters.
 3. Introduce a request-local `ContextVar` whose value is the normalized selection.
 4. Extend `_StreamableHTTPApp` to parse and validate each HTTP request query before delegating to `StreamableHTTPSessionManager`.
@@ -289,6 +292,8 @@ Commit checkpoint:
 
 Objective: verify behavior, process cleanup, documentation consistency, and blast radius.
 
+This was the original final verification gate. Its recorded evidence remains valid for Phases 1–6; Phase 7 adds the hardening gates discovered by the post-implementation audit.
+
 Steps:
 
 1. Run the complete suite:
@@ -328,13 +333,144 @@ Steps:
 
 8. Do not commit unless explicitly requested. If commits are requested, present coherent batches for approval first and use the repository’s configured Irigate author identity.
 
+### Phase 7 — Harden session and reload boundaries
+
+Objective: close the post-implementation audit gaps around stateful-session consistency, activation/reload races, and missing end-to-end evidence before treating the feature as complete.
+
+Files:
+
+- Modify `src/irigate/app.py`.
+- Modify `src/irigate/broker.py`.
+- Modify `tests/test_broker.py` for broker-level activation failure and lifecycle cases.
+- Modify `tests/test_transport.py`.
+- Modify `tests/test_reload.py`.
+- Modify `tests/test_runtime_report.py` if dormant-state reporting needs correction rather than test coverage only.
+- Modify `tests/helpers.py` only if the existing `running_broker` helper, which currently yields one selected URL string, is insufficient for constructing multiple selector URLs. Prefer extending it to expose a base URL or URL-builder while preserving existing callers rather than creating another server fixture.
+- Update `src/irigate/AGENTS.md` and `tests/AGENTS.md` only if implementation changes their durable contracts.
+
+#### 7.1 — Bind selection to the stateful MCP session
+
+1. Inspect the installed MCP library to identify the stable session identifier and lifecycle boundary available before `list_tools` and `call_tool` dispatch. Do not assume Python object identity is stable across HTTP requests without proving it in a focused test.
+2. Treat this inspection as a bounded spike: prove identity stability across requests and identify a teardown hook before choosing storage. If the SDK exposes neither, stop and revise this subsection rather than adding polling, an unbounded registry, or an identity inferred from client address or headers.
+3. Bind the first request's normalized selection, including the default-all selection from a bare URL, to that downstream MCP session. A client that needs a different `tools=` or `upstreams=` selection must open a new MCP session.
+4. Reject every later request that carries a different normalized selection for the same session before broker listing or dispatch. Return a generic, credential-free mismatch error that does not echo the full URL, query string, or selector values, and leave unrelated sessions running.
+5. Keep `agent` as per-request attribution metadata rather than session-bound state. It is not authorization, and changing it must not alter the bound selector.
+6. Remove the binding when the session ends. Prefer an MCP lifecycle hook or manager-owned session state; do not add polling, periodic cleanup, or an unbounded process-wide map.
+7. Add transport tests proving:
+   - initialization with `tools=echo__repeat` cannot later broaden to `upstreams=echo` in the same session;
+   - a client that changes from one valid `tools=` allowlist to another in the same session receives the generic selector-mismatch error;
+   - initialization on the bare endpoint cannot later narrow or otherwise change selection in the same session;
+   - rejection does not terminate or alter another session;
+   - changing only `agent=` within one session does not alter or bypass the bound selector.
+
+Acceptance criteria:
+
+- Selection is immutable after a stateful MCP session is established.
+- Session tracking has an explicit lifecycle and cannot grow without bound.
+- Selector mismatch never reaches `Broker.list_tools()` or `Broker.call_tool()`.
+- Invalid selector syntax remains an HTTP 400 carrying the existing safe `SelectionError`; a valid selector that differs from the session-bound selector returns a separate generic mismatch error that echoes no selector values.
+
+#### 7.2 — Serialize activation with changed and removed upstream reloads
+
+Blocking scope: complete 7.2a and 7.2b before treating the audited race as closed. Then complete the additional lifecycle hardening in 7.2c before closing Phase 7.
+
+##### 7.2a — Prevent stale activation publication
+
+1. Add deterministic race tests using `asyncio.Event` barriers rather than timing sleeps. Pause activation after it captures the old upstream definition, then concurrently:
+   - reload a changed definition for the same key;
+   - reload a profile that removes the key.
+2. Define one deadlock-free lock ordering for reload, per-key activation, and worker mutation. Do not document an ordering until the implementation and tests prove it.
+3. Make reload wait for, cancel, or invalidate in-flight activation for changed and removed keys. The activation path must verify that the configuration generation or exact upstream definition it prepared is still current before publishing schemas, qualification state, metrics, or workers.
+4. Close every stale prepared worker and discard its schemas and qualification result.
+5. Add bounded-timeout assertions proving these race tests complete without deadlock and only the replacement configuration can become visible after reload.
+
+##### 7.2b — Preserve in-flight call semantics
+
+1. Add deterministic tests for a tool call already executing when reload changes or removes its upstream. Cover a shareable worker serving multiple downstream sessions, not only one isolated binding.
+2. Prove each admitted call either completes on its worker or fails boundedly under the documented shutdown policy; reload must not strand callers or leak the retired worker.
+3. Add bounded-timeout assertions for every in-flight-call test.
+
+##### 7.2c — Additional lifecycle hardening
+
+1. Cover a slow or blocked discovery while reload changes or removes the same key. Reload must cancel or invalidate it within a bounded time rather than waiting indefinitely on its activation lock.
+2. Prune activation locks for removed keys after no activation can still publish through them. Repeated add/activate/remove cycles must not grow `_activation_locks` without bound.
+3. Define and test multi-upstream partial failure semantics. Recommended default: activation already completed for an earlier selected upstream remains cached when a later selected upstream fails; the request fails, no partial tool list is returned, and the failed upstream leaves no worker, schema, or qualification residue.
+
+Acceptance criteria:
+
+- A stale activation result cannot publish after a changed or removed upstream reload.
+- Changed and removed keys leave no stale worker, schema, qualification, or live-instance count.
+- An in-flight call has deterministic completion or bounded failure semantics during changed or removed upstream reload.
+- Slow discovery cannot block reload indefinitely, and removed-key activation locks do not accumulate.
+- Multi-upstream activation failure has explicit, tested partial-success semantics and never returns a partial tool list.
+- Activations for unrelated keys remain independent.
+
+#### 7.3 — Add missing transport and reload evidence
+
+1. Add a real Streamable HTTP test for `tools=echo__repeat` proving `tools/list` exposes only `echo__repeat`, hides another tool from the same upstream, and does not activate another configured upstream.
+2. Through the same HTTP boundary, call an unselected tool from the already activated upstream and prove selection enforcement rejects it.
+3. Open two sessions with different selectors and run `tools/list` concurrently with `asyncio.gather`; prove the request-local `ContextVar` does not leak selection across sessions.
+4. Add a reverse-only reload test that parses `upstreams=!echo`, adds a new upstream, re-evaluates the selector against the live configuration, and proves the new upstream is admitted only on the next list or call. Assert it remains dormant immediately after reload.
+5. Add runtime-report coverage for a configured but dormant shareable upstream: zero spawns and live instances, `qualification: not_requested`, stopped activity, and no reporting that implies successful qualification or sharing admission.
+6. Reconcile `IMPLEMENTATION.md` and the nearest owning AGENTS.md files with the final session-binding, reload synchronization, in-flight-call, and notification contracts. Update the website copy only if public behavior or operator guidance changes.
+7. Add operator guidance that changing `tools=` or `upstreams=` requires opening a new MCP session; changing only `agent=` remains allowed because it is attribution metadata. Apply this to README and website documentation where selected client URLs are documented.
+
+Acceptance criteria:
+
+- Exact tool filtering and rejected dispatch are proven over HTTP, not only through broker unit tests.
+- Concurrent sessions retain independent selections.
+- Reverse-only broadening and dormant reporting match the documented contracts.
+
+#### 7.4 — Freeze notification safety
+
+Priority: lower than 7.1–7.3 because the current implementation emits no tool-list-changed notifications. This subsection freezes that safe behavior and must not block the earlier correctness fixes if the installed client exposes no stable notification-observation API.
+
+1. Record beside the MCP `list_tools` handler that process-wide `notifications/tools/list_changed` must not be introduced while sessions expose different selected subsets. Any future notification must be scoped to the receiving session's current selection.
+2. Add a transport test in which one session activates another upstream while a differently selected session remains connected; prove the first session receives no process-wide tool-list-changed notification. If the MCP library supports only process-wide notifications, the release behavior is to emit none, and the test must assert that explicitly. Use a short bounded timeout and the MCP client's supported notification interface rather than reading private queues.
+3. If the installed MCP client offers no stable public way to observe notifications, retain the explicit source contract and document the blocked test instead of coupling tests to library internals.
+
+Acceptance criteria:
+
+- Activation by one session cannot leak a broader tool surface to another through notifications.
+- The limitation and its future extension boundary are explicit in production code.
+
+#### Phase 7 verification
+
+Run focused tests first:
+
+```bash
+uv run --frozen pytest -q \
+  tests/test_broker.py \
+  tests/test_isolation.py \
+  tests/test_shutdown.py \
+  tests/test_transport.py \
+  tests/test_reload.py \
+  tests/test_runtime_report.py
+```
+
+Then run the complete suite and static checks:
+
+```bash
+uv run --frozen pytest -q
+uv run --frozen python -m irigate --config profiles/mvp.yaml --check
+uv run --frozen python -m irigate --config profiles/benchmark-heavy.yaml --check
+git diff --check
+```
+
+Expected: all tests and checks pass, race tests complete within their bounds, and no child process remains.
+
+Commit checkpoint:
+
+- Keep session binding and activation/reload synchronization in separate coherent commits unless their implementation is mechanically inseparable.
+- Put transport/reporting evidence with the behavior it protects; do not create a tests-only cleanup commit detached from its production contract.
+
 ## Files likely to change
 
 | Path | Responsibility |
 | --- | --- |
 | `src/irigate/selection.py` | Typed selector grammar, normalization, validation, and set computation. |
-| `src/irigate/app.py` | Query validation and request-local selector propagation. |
-| `src/irigate/broker.py` | Deferred activation, schema filtering, selection enforcement, and reload behavior. |
+| `src/irigate/app.py` | Query validation, request-local propagation, and stateful-session selector binding and cleanup. |
+| `src/irigate/broker.py` | Deferred activation, schema filtering, selection enforcement, and activation/reload synchronization. |
 | `src/irigate/upstream.py` | Only if discovery lifecycle needs a minimal worker API adjustment. |
 | `tests/test_selection.py` | Pure selector contract. |
 | `tests/test_transport.py` | HTTP selector requirement and decoding. |
@@ -371,10 +507,17 @@ The implementation is complete only when all of the following are proven:
 - Shutdown leaves no child process behind.
 - Audit and runtime reports remain metadata-only and do not record full URLs or query strings.
 - README and IMPLEMENTATION examples match executable behavior.
+- A stateful MCP session cannot change its normalized selection after initialization or first binding.
+- Concurrent sessions with different selectors remain isolated under interleaved requests.
+- Reload cannot publish an activation result prepared from a changed or removed upstream definition.
+- Active calls from multiple sessions sharing one worker have deterministic completion or bounded failure semantics during reload.
+- Dormant shareable upstream reports retain zero process evidence and do not imply qualification or sharing admission.
+- Process-wide tool-list-changed notifications do not leak another session's broader tool surface.
 
 ## Risks and tradeoffs
 
 - **Stateful HTTP session consistency:** selection comes from each request URL rather than being stored in MCP initialization capabilities. The app must reject attempts to change selectors within one MCP session, or prove the Streamable HTTP manager always receives the same configured URL. Prefer explicitly binding the normalized selector to the MCP session ID on initialization/first request and rejecting later mismatch.
+- **Compatibility:** session-bound selection intentionally rejects clients that currently change `tools=` or `upstreams=` while reusing one MCP session. Do not add a compatibility fallback; clients must open a new session to change selection. Changing only `agent=` remains permitted because it is request attribution, not authorization.
 - **Activation races:** process-wide cache reuse can create duplicate upstreams without per-key single-flight synchronization. Avoid one global lock because unrelated upstreams should initialize independently.
 - **Strict qualification timing:** `--require-qualified-sharing` moves from process startup to first selection. README and CLI wording must stop promising that all shareable upstreams are validated before the listener opens.
 - **Reverse-selection broadening:** a profile reload can make a new upstream eligible. This is intentional but must be clearly documented; exact tools remain the least-privilege recommendation.
@@ -383,13 +526,18 @@ The implementation is complete only when all of the following are proven:
 - **Process-wide metrics:** configured-but-dormant upstreams should remain visible with zero spawns, but runtime reporting must not imply qualification or effective shared/isolated mode before activation.
 - **MCP notifications:** if Irigate emits tool-list-changed notifications, they must be scoped carefully because different sessions expose different subsets. If the current MCP library only supports process-wide notifications, omit new notification behavior rather than leaking a broader list.
 
-## Open implementation questions
+## Resolved decisions and remaining decisions
 
-These should be resolved by source inspection or a focused test during implementation, not by expanding product scope:
+Item 4 is the only unresolved design decision and is the entry gate for Phase 7.1.
 
-1. Does `Server.request_context` expose a stable downstream MCP session ID during `list_tools`, `call_tool`, and initialization handling that can bind the selector against later request changes?
-2. Can Starlette/`StreamableHTTPSessionManager` return a clean HTTP 400 before creating session state, or is a small ASGI response helper needed?
-3. Should strict qualification failure be represented as an MCP error from `tools/list` or terminate only that downstream session? The preferred behavior is a bounded MCP request failure that leaves unrelated sessions and upstreams running.
-4. Does the compatibility harness hardcode `/mcp`, and if so, which explicit selector best matches each scenario?
+1. Invalid query selectors return a bounded HTTP 400 through `_StreamableHTTPApp` before MCP dispatch. The response contains only the safe selection error.
+2. Strict first-use qualification failure raises `BrokerInitializationError` for that list or call path and must leave unrelated sessions and upstreams running.
+3. First-party compatibility and benchmark clients use explicit selectors matching their scenarios; the bare endpoint remains the intentional default-all contract.
+4. `Server.request_context.session` currently supplies the worker-binding key during tool calls, but its suitability as a stable cross-request selector-binding identity and its cleanup lifecycle remain unproven. Phase 7.1 must resolve this from the installed MCP implementation and a focused transport test before choosing storage, then replace this item with the chosen identity, storage ownership, and teardown decision.
+5. `agent=` remains per-request attribution metadata and is not part of the bound selector. Changing only `agent=` within one session must neither trigger selector mismatch nor alter selection enforcement.
+
+## Post-implementation audit record
+
+The 2026-07-11 audit compared the shipped implementation and tests with this plan and found three gaps: selector changes were not rejected within an existing stateful MCP session; deferred activation was not synchronized with changed or removed upstream reloads; and Phase 2 retained a stale bare-URL HTTP 400 instruction that contradicted the implemented default-all contract. Phase 7 preserves the first two as open hardening work. Phase 2 now reflects the shipped bare-URL behavior.
 
 No named selector groups, wildcard syntax, persistent schema cache, dynamic configuration API, or MCP protocol extension should be added in this feature.
