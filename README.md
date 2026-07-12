@@ -21,14 +21,14 @@ Irigate is a loopback-only MCP broker. It lets local agent sessions share explic
 
 ## Development highlights
 
-Filesystem workspace inputs bind an isolated MCP process to one client-selected project directory:
+Per-session inputs let a client supply an approved value when starting an isolated upstream. The currently supported input is a required directory named `workspace`:
 
-- Profiles can declare one reserved, required `workspace` input with `type: directory`, a non-empty `allowed_roots` list, and exactly one standalone `{workspace}` argument placeholder.
-- `allowed_roots` supports absolute literal roots plus complete `*` and `**` path segments. Profile-side leading `~` and `${ENV_NAME}` references are expanded under strict rules; environment-derived roots must be absolute and wildcard-free.
+- Profiles can declare one reserved, required `workspace` input with `type: directory`, a non-empty `allowed_roots` list, and exactly one standalone placeholder. `{workspace}` remains valid; ordered forms such as `{filesystem.workspace|github.workspace|workspace}` choose the first supplied source.
+- Each `allowed_roots` entry authorizes that directory and all of its subdirectories. Profile-side leading `~` and `${ENV_NAME}` references are expanded under strict rules; environment-derived roots must be absolute.
 - Workspace authorization resolves the requested directory and each literal pattern prefix canonically before matching. Traversal, sibling-prefix confusion, nonexistent paths, files, and symlink escapes fail closed.
-- A valid namespaced input is fixed for the downstream MCP session, rendered into a worker-local argument list, and included in the isolated worker's non-raw context fingerprint.
+- A valid scoped or global input is fixed for the downstream MCP session, rendered into each selected worker's local argument list, and included in each isolated worker's non-raw context fingerprint. One `workspace=` query value can therefore feed multiple upstreams that list it as a fallback.
 
-Namespaced `<upstream>.workspace` values are accepted only when that upstream is positively selected by `upstreams=` or required by an exact `tools=` selector. Bare and reverse-only URLs cannot supply dynamic inputs, and workspace values never enter audit records or runtime reports.
+Input values are accepted only when a positively selected upstream or exact tool references that source in its placeholder. Bare and reverse-only URLs cannot supply dynamic inputs, unused sources fail closed, and workspace values never enter audit records or runtime reports.
 
 ## Problem hypothesis
 
@@ -180,7 +180,7 @@ An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>
 | --- | --- | --- | --- |
 | `transport` | No | `stdio` | Only `stdio` is supported. |
 | `command` | Yes | — | One executable token. Put command arguments in `args`. |
-| `args` | No | `[]` | Argument list. Environment references and credentials are not accepted. An upstream with `inputs.workspace` must contain exactly one standalone `{workspace}` argument, rendered from the canonical session input before process startup. |
+| `args` | No | `[]` | Argument list. Environment references and credentials are not accepted. An upstream with `inputs.workspace` must contain exactly one standalone workspace placeholder. Pipe-separated sources are checked left to right and rendered from the canonical session input before process startup. |
 | `cwd` | No | Inherit broker directory | Working directory for the stdio process. Migration resolves relative agent paths against the owning user or project directory. |
 | `env` | No | `{}` | Child environment mapping. Every value must be an explicit `${BROKER_ENV_NAME}` reference. |
 | `inputs` | No | `{}` | Per-session input declaration. Only a required `workspace` directory is supported. It needs non-empty `allowed_roots`, requires `shareable: false`, and is immutable after the MCP session is established. |
@@ -257,9 +257,9 @@ http://127.0.0.1:8765/mcp?upstreams=context7,code-review-graph,!code-review-grap
 
 This selects only `context7`. Omitting both selector parameters exposes all configured upstreams unchanged. Reverse-only selection also starts from all currently configured upstreams, so profile reloads can broaden it when a new upstream is added. Prefer `tools=` for least privilege. When selection is used, provide only one `tools` or `upstreams` parameter; repeated parameters, unknown names, malformed tokens, unrelated query parameters, and an empty result are rejected. Exact tool selection never supports `!` because excluding one tool cannot avoid starting its upstream.
 
-### Filesystem workspace input
+### Per-session input
 
-An upstream may declare one required directory input named `workspace`. The benchmark profile configures the filesystem server with a `{workspace}` argument and permits canonical directories at or below `/home/raphael/src`:
+An upstream may declare one required directory input named `workspace`. This filesystem server is one example; the input contract is not specific to that server. The following profile permits the home directory and all of its subdirectories:
 
 ```yaml
 filesystem:
@@ -269,7 +269,7 @@ filesystem:
     workspace:
       type: directory
       required: true
-      allowed_roots: ["/home/raphael/src"]
+      allowed_roots: ["${HOME}"]
   shareable: false
   idle_timeout_seconds: 300
 ```
@@ -277,12 +277,14 @@ filesystem:
 Select the upstream positively and URL-encode the absolute workspace value:
 
 ```text
-http://127.0.0.1:8766/mcp?upstreams=filesystem&filesystem.workspace=%2Fhome%2Fraphael%2Fsrc%2Frb%2Firigate-proxy
+http://127.0.0.1:8766/mcp?upstreams=filesystem&filesystem.workspace=${HOME}
 ```
 
-An exact filesystem tool selector may carry the same input. Inputs do not select upstreams by themselves: bare URLs, reverse-only selectors, excluded upstreams, missing or duplicate values, relative paths, and unknown input names are rejected before activation. The canonical mapping is bound to the first successful MCP session response; later requests for that session must present the identical mapping.
+Here `${HOME}` denotes the absolute value supplied by the client; Irigate does not expand shell syntax in query values.
 
-Configured `allowed_roots` are absolute path-segment patterns. Literal segments match exactly, `*` matches one complete segment, and `**` matches zero or more complete segments. A matched root permits descendants. Profile-side leading `~` and braced `${ENV_NAME}` references expand at load time under strict validation, but query values never expand shell syntax. Irigate strictly resolves the requested directory before authorization, so traversal and symlink paths are judged by their canonical destination.
+An exact tool selector for the configured upstream may carry the same input. Inputs do not select upstreams by themselves: bare URLs, reverse-only selectors, excluded upstreams, missing or duplicate values, relative paths, and unknown input names are rejected before activation. The canonical mapping is bound to the first successful MCP session response; later requests for that session must present the identical mapping.
+
+Each configured `allowed_roots` entry permits its canonical directory and all descendants. Profile-side leading `~` and braced `${ENV_NAME}` references expand at load time under strict validation, but query values never expand shell syntax. Irigate strictly resolves the requested directory before authorization, so traversal and symlink paths are judged by their canonical destination.
 
 Add an explicit `agent=` label to attribute calls in the runtime report:
 

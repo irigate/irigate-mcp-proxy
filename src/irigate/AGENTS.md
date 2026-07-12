@@ -24,8 +24,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Bind addresses are loopback-only.
 - Upstream transport is stdio-only; changing the transport requires an explicit design decision and updates to `IMPLEMENTATION.md`.
 - Profile environment values are `${ENV_NAME}` references only; values come from the broker process and never appear in validation output.
-- Dynamic upstream configuration is limited to a required `workspace` directory input on non-shareable upstreams, rendered through exactly one standalone `{workspace}` argument placeholder.
-- Workspace `allowed_roots` are absolute path-segment patterns; only complete `*` and `**` wildcard segments are accepted. Leading `~` and braced environment references expand while loading the profile, and environment-derived roots must be absolute and wildcard-free.
+- Dynamic upstream configuration is limited to a required `workspace` directory input on non-shareable upstreams, rendered through exactly one standalone placeholder. A placeholder may list ordered scoped-to-global sources, such as `{filesystem.workspace|github.workspace|workspace}`; the first supplied source wins and one global value may feed multiple selected upstreams.
+- Each workspace `allowed_roots` entry authorizes its canonical directory and descendants. Leading `~` and braced environment references expand while loading the profile, and environment-derived roots must be absolute.
 - Profile path precedence is explicit `--config`, then `IRIGATE_CONFIG`, then `~/.config/irigate/config.yaml`.
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields and duplicate YAML keys are errors.
@@ -43,7 +43,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Reload prepares changed active upstreams before routing switches, keeps added and changed dormant upstreams unstarted, preserves the last valid active configuration on failure, and never replaces downstream HTTP sessions.
 - Runtime `host` and `port` changes are rejected; they require replacing the listener.
 - A request without a selector uses all configured upstreams. A selected request uses one `tools` or `upstreams` mode; upstream exclusions override inclusions and unknown names fail closed.
-- Namespaced inputs are accepted only for an upstream explicitly selected by a positive `upstreams=` token or an exact `tools=` selector. Inputs never select an upstream; bare, reverse-only, excluded, duplicate, unknown, empty, missing-required, and unauthorized workspace forms fail closed.
+- Input sources are accepted only when a positive `upstreams=` token or exact `tools=` selector chooses an upstream whose placeholder references them. Inputs never select an upstream; bare, reverse-only, excluded, unused, duplicate, unknown, empty, missing-required, and unauthorized workspace forms fail closed.
 - The first successful Streamable HTTP response binds the selection's immutable input mapping to the MCP session ID. Every later request for that session must present the same canonical mapping; rebinding fails before broker dispatch.
 - Qualification, schema discovery, and process startup occur only when an agent first selects an upstream; concurrent first selection is single-flight per upstream.
 - Exact tool selectors filter `tools/list` and dispatch; process-wide activation by another agent never broadens a request's selection.

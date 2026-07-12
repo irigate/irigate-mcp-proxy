@@ -159,6 +159,27 @@ def workspace_upstreams(root: Path) -> dict[str, UpstreamConfig]:
     }
 
 
+def hierarchical_workspace_upstreams(root: Path) -> dict[str, UpstreamConfig]:
+    input_config = WorkspaceInputConfig(
+        type="directory", required=True, allowed_roots=(str(root),)
+    )
+    return {
+        **UPSTREAMS,
+        "filesystem": UpstreamConfig(
+            command="test",
+            args=("{filesystem.workspace|workspace}",),
+            idle_timeout_seconds=60,
+            inputs={"workspace": input_config},
+        ),
+        "git": UpstreamConfig(
+            command="test",
+            args=("{git.workspace|filesystem.workspace|workspace}",),
+            idle_timeout_seconds=60,
+            inputs={"workspace": input_config},
+        ),
+    }
+
+
 @pytest.mark.parametrize(
     "selector",
     [
@@ -179,6 +200,39 @@ def test_parses_and_canonicalizes_explicit_workspace_input(
 
     assert selection.inputs == (
         ("filesystem", (("workspace", str(workspace.resolve())),)),
+    )
+
+
+def test_reuses_global_workspace_for_selected_upstreams(tmp_path: Path) -> None:
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+
+    selection = parse_selection(
+        (("upstreams", "filesystem,git"), ("workspace", str(workspace))),
+        hierarchical_workspace_upstreams(tmp_path),
+    )
+
+    expected = (("workspace", str(workspace.resolve())),)
+    assert selection.inputs == (("filesystem", expected), ("git", expected))
+
+
+def test_workspace_source_hierarchy_uses_first_provided_value(tmp_path: Path) -> None:
+    filesystem_workspace = tmp_path / "filesystem"
+    global_workspace = tmp_path / "global"
+    filesystem_workspace.mkdir()
+    global_workspace.mkdir()
+
+    selection = parse_selection(
+        (
+            ("upstreams", "git"),
+            ("filesystem.workspace", str(filesystem_workspace)),
+            ("workspace", str(global_workspace)),
+        ),
+        hierarchical_workspace_upstreams(tmp_path),
+    )
+
+    assert selection.inputs == (
+        ("git", (("workspace", str(filesystem_workspace.resolve())),)),
     )
 
 

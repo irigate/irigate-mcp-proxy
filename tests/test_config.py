@@ -251,6 +251,21 @@ def test_loads_workspace_input_and_expands_allowed_roots(
     )
 
 
+def test_loads_ordered_workspace_input_sources(tmp_path: Path) -> None:
+    profile = workspace_profile(
+        ["/srv/projects"],
+        args="[-m, echo_server, '{filesystem.workspace|github.workspace|workspace}']",
+    )
+
+    config = load_config(write_profile(tmp_path, profile))
+
+    assert config.upstreams["echo"].workspace_sources == (
+        "filesystem.workspace",
+        "github.workspace",
+        "workspace",
+    )
+
+
 @pytest.mark.parametrize(
     ("profile", "error"),
     [

@@ -13,6 +13,8 @@ _ENV_REFERENCE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
 _ENV_INTERPOLATION = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _UPSTREAM_KEY = re.compile(r"^[a-z][a-z0-9-]*$")
 _PROFILE_NAME = re.compile(r"^[a-z][a-z0-9-]*$")
+_WORKSPACE_SOURCE = re.compile(r"^(?:[a-z][a-z0-9-]*\.)?workspace$")
+_INPUT_PLACEHOLDER = re.compile(r"^\{([^{}]+)\}$")
 QUALIFIER_UPSTREAM_KEYS = {"context7-readonly-v3": "context7"}
 REGISTERED_QUALIFIERS = frozenset(QUALIFIER_UPSTREAM_KEYS)
 
@@ -105,23 +107,49 @@ class UpstreamConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_shareability(self) -> UpstreamConfig:
-        placeholder_occurrences = sum(arg.count("{workspace}") for arg in self.args)
-        exact_placeholders = self.args.count("{workspace}")
+        placeholders = tuple(
+            match.group(1)
+            for arg in self.args
+            if (match := _INPUT_PLACEHOLDER.fullmatch(arg)) is not None
+        )
+        malformed_placeholders = tuple(
+            arg
+            for arg in self.args
+            if ("{" in arg or "}" in arg) and not _INPUT_PLACEHOLDER.fullmatch(arg)
+        )
         if self.inputs:
-            if placeholder_occurrences != 1 or exact_placeholders != 1:
+            if malformed_placeholders or len(placeholders) != 1:
                 raise ValueError(
-                    "workspace input requires exactly one exact {workspace} argument placeholder"
+                    "workspace input requires exactly one standalone input placeholder"
                 )
+            sources = placeholders[0].split("|")
+            if any(_WORKSPACE_SOURCE.fullmatch(source) is None for source in sources):
+                raise ValueError(
+                    "workspace placeholder sources must be workspace or <upstream>.workspace"
+                )
+            if len(sources) != len(set(sources)):
+                raise ValueError("workspace placeholder sources must be unique")
             if self.shareable:
                 raise ValueError("dynamic inputs require a non-shareable upstream")
-        elif placeholder_occurrences:
-            raise ValueError("{workspace} placeholder is invalid without inputs")
+        elif placeholders or malformed_placeholders:
+            raise ValueError("input placeholder is invalid without inputs")
         if self.shareable and self.qualifier not in REGISTERED_QUALIFIERS:
             names = ", ".join(sorted(REGISTERED_QUALIFIERS))
             raise ValueError(f"shareable upstream requires a registered qualifier: {names}")
         if not self.shareable and self.qualifier is not None:
             raise ValueError("qualifier is only valid when shareable is true")
         return self
+
+    @property
+    def workspace_sources(self) -> tuple[str, ...]:
+        if not self.inputs:
+            return ()
+        placeholder = next(
+            match.group(1)
+            for arg in self.args
+            if (match := _INPUT_PLACEHOLDER.fullmatch(arg)) is not None
+        )
+        return tuple(placeholder.split("|"))
 
 
 def _expand_allowed_root(pattern: object) -> str:

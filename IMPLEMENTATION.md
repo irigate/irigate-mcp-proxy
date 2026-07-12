@@ -35,7 +35,7 @@ Profiles define:
 - Required per-upstream idle timeout, call timeout, and degradation thresholds.
 - Optional runtime-report path.
 - Optional per-upstream working directory, passed unchanged to the stdio process launcher.
-- Optional required `workspace` directory input for a non-shareable upstream, with canonical allowed-root patterns and one standalone `{workspace}` argument placeholder.
+- Optional required `workspace` directory input for a non-shareable upstream, with canonical allowed-root patterns and one standalone placeholder containing ordered scoped-to-global sources.
 
 Constraints:
 
@@ -46,18 +46,18 @@ Constraints:
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields, duplicate YAML keys, unsupported transports, and non-loopback binds are errors.
 
-### Filesystem workspace inputs
+### Per-session inputs
 
-Per-session filesystem workspaces are a narrow dynamic-input contract:
+Per-session inputs are a narrow dynamic-input contract. The currently supported value is a directory named `workspace`; a filesystem server is one consumer, not part of the contract itself:
 
 - `WorkspaceInputConfig` accepts only the reserved `workspace` input with `type: directory`, an explicit boolean `required`, and a non-empty `allowed_roots` tuple.
-- Dynamic inputs require `shareable: false` and exactly one argument whose complete value is `{workspace}`. The placeholder is rejected when no input is declared.
-- Configured roots are absolute path-segment patterns. Literal segments match exactly, `*` matches one segment, and `**` matches zero or more segments; a matched root also permits descendants.
-- A leading `~` and braced `${ENV_NAME}` references expand while loading the profile. Other shell forms, unset names, traversal segments, partial wildcards, and wildcard-bearing environment values fail validation.
+- Dynamic inputs require `shareable: false` and exactly one argument whose complete value is a workspace placeholder. `{workspace}` supports the legacy `<upstream>.workspace` request name; explicit pipe-separated forms such as `{filesystem.workspace|github.workspace|workspace}` resolve the first supplied source. Placeholders are rejected when no input is declared.
+- Each configured root permits its canonical directory and all descendants.
+- A leading `~` and braced `${ENV_NAME}` references expand while loading the profile. Other shell forms, unset names, traversal segments, and wildcard-bearing environment values fail validation.
 - `workspace.resolve_workspace()` requires an explicit absolute path, resolves it with `strict=True`, requires a directory, canonicalizes each pattern's literal prefix, and performs memoized segment matching without shell glob expansion or filesystem enumeration.
 - Authorization compares canonical path segments, so lexical traversal, sibling-prefix confusion, and final or intermediate symlink escapes do not inherit access from the untrusted path string.
 
-`selection.py` separates namespaced inputs from selectors, requires an explicit positive upstream or exact-tool selection, rejects ambiguous forms, and stores canonical values in immutable selection bindings. The Streamable HTTP adapter records those bindings when the MCP session ID is issued and rejects any later request that presents a different mapping. `Broker` extracts the selected upstream's canonical values, keys isolated workers by `(session, upstream, input fingerprint)`, and passes only the worker-local mapping to `UpstreamWorker`. The worker renders `{workspace}` into a fresh argument list immediately before constructing `StdioServerParameters`; frozen profile arguments remain unchanged. Raw workspace values are excluded from audit and runtime-report metadata.
+`selection.py` separates input sources from selectors, requires an explicit positive upstream or exact-tool selection, resolves each selected upstream's ordered source hierarchy, rejects unused or ambiguous forms, and stores canonical target values in immutable selection bindings. A global source may populate multiple selected upstreams, while each target still authorizes the directory against its own `allowed_roots`. The Streamable HTTP adapter records the resolved bindings when the MCP session ID is issued and rejects any later request that produces a different mapping. `Broker` keys isolated workers by `(session, upstream, input fingerprint)` and passes only the target's canonical workspace to `UpstreamWorker`. The worker renders the configured placeholder into a fresh argument list immediately before constructing `StdioServerParameters`; frozen profile arguments remain unchanged. Raw workspace values are excluded from audit and runtime-report metadata.
 
 Runtime reload behavior:
 
@@ -196,7 +196,7 @@ uv run --frozen python scripts/compatibility.py --config profiles/mvp.yaml
 uv run --frozen python scripts/benchmark.py --config profiles/benchmark-heavy.yaml --clients 1,5,20 --repetitions 3
 ```
 
-The full test suite must prove default-all behavior, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output. Focused configuration and workspace tests additionally prove input-schema rejection, pattern expansion, canonical traversal handling, `*`/`**` semantics, and symlink-escape rejection.
+The full test suite must prove default-all behavior, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output. Focused configuration and workspace tests additionally prove input-schema rejection, configured-root expansion, descendant authorization, canonical traversal handling, and symlink-escape rejection.
 
 Migration tests must prove common-path discovery, explicit-file-only scope, JSON/YAML/TOML preservation, correct per-agent HTTP fields, environment-reference safety, collision rejection before writes, and adjacent backups.
 

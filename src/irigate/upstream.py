@@ -85,8 +85,9 @@ class UpstreamWorker:
     async def _run(self) -> None:
         assert self._ready is not None
         try:
+            placeholder = "{" + "|".join(self.config.workspace_sources) + "}"
             args = [
-                self.inputs["workspace"] if arg == "{workspace}" else arg
+                self.inputs["workspace"] if arg == placeholder else arg
                 for arg in self.config.args
             ]
             params = StdioServerParameters(

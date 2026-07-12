@@ -29,14 +29,14 @@ upstreams:
   filesystem:
     transport: stdio
     command: npx
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "{workspace}"]
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "{filesystem.workspace|github.workspace|workspace}"]
     env: {}
     inputs:
       workspace:
         type: directory
         required: true
         allowed_roots:
-          - /home/raphael/src
+          - ${HOME}
     shareable: false
     concurrency: parallel
     call_timeout_seconds: 30
@@ -59,6 +59,59 @@ upstreams:
     env: {}
     shareable: false
     concurrency: serial
+    call_timeout_seconds: 60
+    idle_timeout_seconds: 300
+
+  chrome-devtools-win:
+    transport: stdio
+    command: cmd.exe
+    args: ["/c", "npx", "-y", "chrome-devtools-mcp@latest", "--autoConnect", "--no-usage-statistics"]
+    env: {}
+    shareable: false
+    concurrency: serial
+    call_timeout_seconds: 60
+    idle_timeout_seconds: 300
+
+  git:
+    transport: stdio
+    command: uvx
+    args: ["mcp-server-git", "--repository", "{git.workspace|filesystem.workspace|github.workspace|workspace}"]
+    env: {}
+    inputs:
+      workspace:
+        type: directory
+        required: true
+        allowed_roots:
+          - ${HOME}
+    shareable: false
+    concurrency: parallel
+    call_timeout_seconds: 30
+    idle_timeout_seconds: 300
+
+  open-scaffold:
+    transport: stdio
+    command: npx
+    args: ["-y", "open-scaffold@latest", "mcp", "serve", "--repo", "{open-scaffold.workspace|git.workspace|filesystem.workspace|github.workspace|workspace}"]
+    env: {}
+    inputs:
+      workspace:
+        type: directory
+        required: true
+        allowed_roots:
+          - ${HOME}
+    shareable: false
+    concurrency: parallel
+    call_timeout_seconds: 60
+    idle_timeout_seconds: 300
+
+  github-triage:
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN}
+    shareable: false
+    concurrency: parallel
     call_timeout_seconds: 60
     idle_timeout_seconds: 300
 

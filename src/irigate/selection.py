@@ -13,6 +13,13 @@ _SELECTOR_NAMES = frozenset({"tools", "upstreams"})
 InputBindings = tuple[tuple[str, tuple[tuple[str, str], ...]], ...]
 
 
+def _workspace_sources(upstream: str, config: UpstreamConfig) -> tuple[str, ...]:
+    sources = config.workspace_sources
+    if sources == ("workspace",):
+        return (f"{upstream}.workspace", "workspace")
+    return sources
+
+
 class SelectionError(ValueError):
     """A safe-to-display downstream selection error."""
 
@@ -48,19 +55,24 @@ def parse_selection(
     items = tuple(query_items)
     configured = frozenset(configured_upstreams)
     selector_items: list[tuple[str, str]] = []
-    input_items: list[tuple[str, str, str]] = []
+    input_items: list[tuple[str, str]] = []
+    configured_sources = {
+        source
+        for upstream, config in configured_upstreams.items()
+        for source in _workspace_sources(upstream, config)
+    }
     for name, value in items:
         if name in _SELECTOR_NAMES:
             selector_items.append((name, value))
             continue
-        upstream, separator, input_name = name.partition(".")
-        if not separator:
+        if name not in configured_sources:
+            upstream, separator, input_name = name.partition(".")
+            if separator and upstream not in configured_upstreams:
+                raise SelectionError(f"unknown upstream: {upstream}")
+            if separator:
+                raise SelectionError(f"unknown input for {upstream}: {input_name}")
             raise SelectionError(f"unsupported query parameter: {name}")
-        if upstream not in configured_upstreams:
-            raise SelectionError(f"unknown upstream: {upstream}")
-        if input_name not in configured_upstreams[upstream].inputs:
-            raise SelectionError(f"unknown input for {upstream}: {input_name}")
-        input_items.append((upstream, input_name, value))
+        input_items.append((name, value))
 
     selected_names = {name for name, _ in selector_items}
     if not selector_items:
@@ -96,17 +108,18 @@ def parse_selection(
 
 def _bind_inputs(
     selection: Selection,
-    input_items: Sequence[tuple[str, str, str]],
+    input_items: Sequence[tuple[str, str]],
     configured_upstreams: Mapping[str, UpstreamConfig],
     *,
     selector_present: bool,
 ) -> Selection:
-    provided: dict[str, dict[str, str]] = {}
-    for upstream, input_name, value in input_items:
-        upstream_values = provided.setdefault(upstream, {})
-        if input_name in upstream_values:
-            raise SelectionError(f"duplicate input: {upstream}.{input_name}")
-        upstream_values[input_name] = value
+    provided: dict[str, str] = {}
+    for source, value in input_items:
+        if source in provided:
+            raise SelectionError(f"duplicate input: {source}")
+        if not value:
+            raise SelectionError(f"input must not be empty: {source}")
+        provided[source] = value
 
     if isinstance(selection, ToolSelection):
         explicit_upstreams = selection.upstreams
@@ -115,28 +128,39 @@ def _bind_inputs(
         explicit_upstreams = selection.included if selector_present else frozenset()
         excluded = selection.excluded
 
-    canonical: dict[str, dict[str, str]] = {}
-    for upstream, values in provided.items():
-        if upstream in excluded:
-            raise SelectionError(f"input is for excluded upstream: {upstream}")
-        if upstream not in explicit_upstreams:
-            raise SelectionError(
-                f"input upstream must be explicitly selected: {upstream}"
-            )
-        for input_name, value in values.items():
-            if not value:
-                raise SelectionError(f"input must not be empty: {upstream}.{input_name}")
-            input_config = configured_upstreams[upstream].inputs[input_name]
-            try:
-                resolved = resolve_workspace(value, input_config.allowed_roots)
-            except WorkspaceValidationError as exc:
-                raise SelectionError(str(exc)) from exc
-            canonical.setdefault(upstream, {})[input_name] = str(resolved)
+    if provided and (not selector_present or not explicit_upstreams):
+        source = sorted(provided)[0]
+        raise SelectionError(f"input source requires an explicitly selected upstream: {source}")
 
+    canonical: dict[str, dict[str, str]] = {}
+    eligible_sources: set[str] = set()
     for upstream in selection.upstreams:
-        for input_name, input_config in configured_upstreams[upstream].inputs.items():
-            if input_config.required and input_name not in provided.get(upstream, {}):
-                raise SelectionError(f"required input is missing: {upstream}.{input_name}")
+        upstream_config = configured_upstreams[upstream]
+        if not upstream_config.inputs:
+            continue
+        sources = _workspace_sources(upstream, upstream_config)
+        eligible_sources.update(sources)
+        source = next((candidate for candidate in sources if candidate in provided), None)
+        input_config = upstream_config.inputs["workspace"]
+        if source is None:
+            if input_config.required:
+                raise SelectionError(f"required input is missing: {upstream}.workspace")
+            continue
+        try:
+            resolved = resolve_workspace(provided[source], input_config.allowed_roots)
+        except WorkspaceValidationError as exc:
+            raise SelectionError(str(exc)) from exc
+        canonical[upstream] = {"workspace": str(resolved)}
+
+    unused = sorted(set(provided) - eligible_sources)
+    if unused:
+        source = unused[0]
+        scoped_upstream, separator, _ = source.partition(".")
+        if separator and scoped_upstream in excluded:
+            raise SelectionError(f"input is for excluded upstream: {scoped_upstream}")
+        raise SelectionError(
+            f"input source is not used by an explicitly selected upstream: {source}"
+        )
 
     bindings: InputBindings = tuple(
         (upstream, tuple(sorted(values.items())))

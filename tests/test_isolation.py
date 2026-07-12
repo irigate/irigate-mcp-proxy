@@ -152,6 +152,36 @@ async def test_workspace_arguments_are_scoped_to_session_and_input(
         await broker.close()
 
 
+async def test_workspace_hierarchy_renders_reused_global_input(tmp_path: Path) -> None:
+    from irigate.selection import parse_selection
+
+    workspace_server = Path(__file__).parent / "fixtures" / "workspace_server.py"
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    definition = upstream(
+        args=[str(workspace_server), "{filesystem.workspace|github.workspace|workspace}"]
+    )
+    definition["inputs"] = {
+        "workspace": {
+            "type": "directory",
+            "required": True,
+            "allowed_roots": [str(tmp_path)],
+        }
+    }
+    config = config_for(8765, {"git": definition})
+    selection = parse_selection(
+        (("upstreams", "git"), ("workspace", str(workspace))),
+        config.upstreams,
+    )
+    broker = Broker(config)
+    await broker.start()
+    try:
+        result = await broker.call_tool("git__workspace", {}, "session", selection)
+        assert result.structuredContent == {"workspace": str(workspace)}
+    finally:
+        await broker.close()
+
+
 async def test_every_shareable_profile_entry_names_its_reviewed_qualifier() -> None:
     from irigate.config import load_config
 
