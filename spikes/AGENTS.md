@@ -28,7 +28,7 @@ Disposable experiments for validating transport, client compatibility, and upstr
 - `001-streamable-http-roundtrip/verify.py` — initializes the broker, exchanges the full MCP request flow, and asserts shutdown completes.
 - `002-shared-upstream-state/verify.py` — proves the qualified shared upstream is read-only, isolates a destructive upstream, and contains an upstream process crash.
 - `003-multi-client-compatibility/verify.py` — proves at least two CLI clients can call the broker directly without authentication exposure.
-- `python3 ~/.hermes/profiles/hermes-vc/scripts/check-md-links.py --format summary /home/raphael/src/rb/irigate-proxy` — every spike README has valid links and anchors.
+- `python3 ~/.hermes/profiles/hermes-vc/scripts/check-md-links.py --format summary .` — every spike README has valid links and anchors when run from the repository root.
 
 ## Child DOX Index
 
