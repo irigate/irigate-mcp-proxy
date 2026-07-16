@@ -53,7 +53,7 @@ class UpstreamConfig(BaseModel):
     command: str
     args: tuple[str, ...] = ()
     cwd: Path | None = None
-    env: dict[str, EnvironmentReference] = Field(default_factory=dict)
+    env: dict[str, EnvironmentReference | str] = Field(default_factory=dict)
     inputs: dict[str, WorkspaceInputConfig] = Field(default_factory=dict)
     shareable: bool = False
     qualifier: str | None = None
@@ -79,21 +79,21 @@ class UpstreamConfig(BaseModel):
 
     @field_validator("env", mode="before")
     @classmethod
-    def parse_environment_references(cls, value: object) -> object:
+    def parse_environment_values(cls, value: object) -> object:
         if value is None:
             return {}
         if not isinstance(value, Mapping):
-            raise ValueError("env must map child variable names to ${ENV_NAME} references")
-        parsed: dict[str, dict[str, str]] = {}
-        for child_name, reference in value.items():
+            raise ValueError("env must map child variable names to string values")
+        parsed: dict[str, str | dict[str, str]] = {}
+        for child_name, configured_value in value.items():
             if not isinstance(child_name, str) or not child_name:
                 raise ValueError("env names must be non-empty strings")
-            if not isinstance(reference, str):
-                raise ValueError("environment reference must use ${ENV_NAME}")
-            match = _ENV_REFERENCE.fullmatch(reference)
-            if match is None:
-                raise ValueError("environment reference must use ${ENV_NAME}")
-            parsed[child_name] = {"name": match.group(1)}
+            if not isinstance(configured_value, str):
+                raise ValueError("environment values must be strings")
+            match = _ENV_REFERENCE.fullmatch(configured_value)
+            parsed[child_name] = (
+                {"name": match.group(1)} if match is not None else configured_value
+            )
         return parsed
 
     @field_validator("inputs")
@@ -257,9 +257,10 @@ class BrokerConfig(BaseModel):
     @property
     def environment_names(self) -> frozenset[str]:
         return frozenset(
-            reference.name
+            configured_value.name
             for upstream in self.upstreams.values()
-            for reference in upstream.env.values()
+            for configured_value in upstream.env.values()
+            if isinstance(configured_value, EnvironmentReference)
         )
 
     def resolve_environment(
@@ -273,8 +274,12 @@ class BrokerConfig(BaseModel):
             raise ConfigurationError("missing environment references: " + ", ".join(missing))
         return {
             upstream_key: {
-                child_name: source[reference.name]
-                for child_name, reference in upstream.env.items()
+                child_name: (
+                    source[configured_value.name]
+                    if isinstance(configured_value, EnvironmentReference)
+                    else configured_value
+                )
+                for child_name, configured_value in upstream.env.items()
             }
             for upstream_key, upstream in self.upstreams.items()
         }

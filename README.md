@@ -117,6 +117,7 @@ upstreams:
     args: ["-y", "@upstash/context7-mcp"]
     env:
       CONTEXT7_API_KEY: ${CONTEXT7_API_KEY}
+      LOG_LEVEL: info
     shareable: true
     qualifier: context7-readonly-v3
     concurrency: serial
@@ -182,7 +183,7 @@ An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>
 | `command` | Yes | — | One executable token. Put command arguments in `args`. |
 | `args` | No | `[]` | Argument list. Environment references and credentials are not accepted. An upstream with `inputs.workspace` must contain exactly one standalone workspace placeholder. Pipe-separated sources are checked left to right and rendered from the canonical session input before process startup. |
 | `cwd` | No | Inherit broker directory | Working directory for the stdio process. Migration resolves relative agent paths against the owning user or project directory. |
-| `env` | No | `{}` | Child environment mapping. Every value must be an explicit `${BROKER_ENV_NAME}` reference. |
+| `env` | No | `{}` | Child environment mapping. Values may be literal strings or explicit `${BROKER_ENV_NAME}` references. Use references for credentials so secret values stay out of the profile. |
 | `inputs` | No | `{}` | Per-session input declaration. Only a required `workspace` directory is supported. It needs non-empty `allowed_roots`, requires `shareable: false`, and is immutable after the MCP session is established. |
 | `shareable` | No | `false` | Requests one process shared across downstream sessions. Sharing is admitted only by a registered qualifier. |
 | `qualifier` | Conditional | — | Required when `shareable: true`; rejected otherwise. Currently registered: `context7-readonly-v3` for the `context7` key. |
@@ -194,7 +195,7 @@ An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>
 
 Each spawned worker tracks its own idle timeout. A worker shuts down only when its TTL expires with no queued or active calls. Shared and session-isolated workers expire independently, and the next routed call starts a fresh process in the same effective sharing mode. A long-running call remains governed by `call_timeout_seconds`, not by the idle timeout.
 
-Environment values are resolved from the broker process without being written into the profile, audit log, runtime report, or validation output:
+Literal strings are passed directly to the child process. `${ENV_NAME}` values are resolved from the broker process without being written into the profile, audit log, runtime report, or validation output:
 
 ```bash
 export CONTEXT7_API_KEY='...'

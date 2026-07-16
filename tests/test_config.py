@@ -211,12 +211,28 @@ def test_reports_missing_environment_names_without_values(
     assert "synthetic-secret-value" not in message
 
 
-def test_rejects_literal_environment_values(tmp_path: Path) -> None:
+def test_resolves_literal_and_referenced_environment_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TEST_CONTEXT7_API_KEY", "synthetic-secret-value")
     profile = VALID_PROFILE.replace(
-        "${TEST_CONTEXT7_API_KEY}", "literal-secret-must-not-be-accepted"
+        "      CONTEXT7_API_KEY: ${TEST_CONTEXT7_API_KEY}",
+        "      CONTEXT7_API_KEY: ${TEST_CONTEXT7_API_KEY}\n      LOG_LEVEL: debug",
     )
 
-    with pytest.raises(ConfigurationError, match="environment reference"):
+    config = load_config(write_profile(tmp_path, profile))
+
+    assert config.environment_names == frozenset({"TEST_CONTEXT7_API_KEY"})
+    assert config.resolve_environment()["context7"] == {
+        "CONTEXT7_API_KEY": "synthetic-secret-value",
+        "LOG_LEVEL": "debug",
+    }
+
+
+def test_rejects_non_string_environment_values(tmp_path: Path) -> None:
+    profile = VALID_PROFILE.replace("${TEST_CONTEXT7_API_KEY}", "true")
+
+    with pytest.raises(ConfigurationError, match="environment values must be strings"):
         load_config(write_profile(tmp_path, profile))
 
 

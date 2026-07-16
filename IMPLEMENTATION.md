@@ -13,7 +13,7 @@ It is not an enterprise gateway. Remote access, tenant identity, authorization, 
 
 ## Runtime architecture
 
-1. `config.load_config()` parses a YAML profile into typed models, rejects duplicate keys and unknown fields, and resolves only `${ENV_NAME}` references from the broker process environment.
+1. `config.load_config()` parses a YAML profile into typed models, rejects duplicate keys and unknown fields, preserves literal child-environment strings, and resolves `${ENV_NAME}` references from the broker process environment.
 2. `app.create_app()` exposes MCP Streamable HTTP on a loopback address, enforces the Origin policy, and watches the selected profile for background reloads. Local non-browser clients may omit `Origin`; malformed or non-loopback origins are rejected.
 3. `Broker` validates each agent selection, activates only selected upstreams, filters `tools/list`, routes exact `<upstream-key>__<tool-name>` calls, and atomically swaps successfully prepared active-upstream changes.
 4. `Broker` selects a shared worker only when sharing was requested and qualification passed. Otherwise it creates workers scoped to downstream sessions and stable fingerprints of canonical inputs.
@@ -29,7 +29,7 @@ The CLI resolves the profile path in this order: explicit `--config`, the `IRIGA
 Profiles define:
 
 - Loopback host and port.
-- Upstream key, stdio command, arguments, and environment references.
+- Upstream key, stdio command, arguments, and literal or referenced environment values.
 - Explicit `shareable` mode and qualifier name.
 - Explicit `serial` or `parallel` concurrency.
 - Required per-upstream idle timeout, call timeout, and degradation thresholds.
@@ -41,7 +41,7 @@ Constraints:
 
 - Upstream keys are unique and valid routing prefixes.
 - Commands and arguments must not carry credentials.
-- Environment values are references, never literal secrets.
+- Environment values are strings. Exact `${ENV_NAME}` values reference the broker process environment; other strings are passed literally. Credentials belong in references, not profile literals.
 - Unknown environment references fail during loading.
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields, duplicate YAML keys, unsupported transports, and non-loopback binds are errors.
