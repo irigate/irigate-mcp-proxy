@@ -10,7 +10,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `workspace.py` owns strict canonical directory resolution and segment-based `allowed_roots` authorization.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
 - `migration.py` owns common agent-config discovery, JSON/YAML/TOML conversion, backup creation, and atomic replacement.
-- `__main__.py` owns serving, validation, qualification, runtime tool discovery, direct tool-call, process-report, and process-control console contracts.
+- `__main__.py` owns serving, validation, qualification, progressive runtime discovery, bundled-skill location, direct tool-call, process-report, and process-control console contracts.
+- `agent_skill/SKILL.md` owns the optional AgentSkills-compatible progressive-disclosure workflow.
 - `app.py` owns the loopback Streamable HTTP application, agent-label propagation, Origin policy, background profile watcher, and serving-process control lifecycle.
 - `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, input-fingerprinted worker selection, and atomic upstream reload.
 - `selection.py` owns typed agent selector parsing, namespaced input validation and canonicalization, normalization, and fail-closed set computation.
@@ -51,6 +52,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Exact tool selectors filter `tools/list` and dispatch; process-wide activation by another agent never broadens a request's selection.
 - Root and subcommand CLI help identify `~/.config/irigate/config.yaml` as the default profile file. Root help lists every subcommand and identifies the running package version; `reload` and `stop` help repeat that version, and `--version` prints it directly.
 - Direct CLI calls accept one JSON object, emit the complete MCP result as JSON, return nonzero for tool errors, and close their worker before exiting.
+- Progressive CLI discovery keeps exact names visible: `upstreams` is static and environment-free, `tools --upstream --json` omits schemas, and `schema` emits one exact tool definition. Runtime discovery closes its selected workers before returning.
+- `skill-path` prints the bundled Agent Skill directory without loading a profile. The skill must not imply cross-command state retention or accept credentials in arguments.
 - Downstream `agent` labels are explicit attribution metadata, not authentication; omitted labels are `anonymous` and Irigate never infers identity.
 - `ps` reads the latest runtime report without resolving environments or starting upstreams and reports busy/idle/stopped state, elapsed idle time, configured idle timeout, and usage in table or JSON form.
 - `reload` requires a configured runtime report, does not resolve upstream environments, signals only a matching live Irigate process, and wakes the existing connection-preserving profile reload path.
@@ -64,7 +67,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Keep configuration parsing free of process startup side effects.
 - Return typed models from public loaders; do not pass raw YAML mappings into runtime code.
 - Error messages may identify fields and environment-variable names, never resolved values. Missing required broker fields include credential-free, actionable profile examples.
-- Runtime tool discovery prints namespaced tool names only and closes every worker before returning.
+- Default runtime tool discovery prints namespaced tool names only. Progressive JSON discovery may add descriptions or one exact schema, and every mode closes workers before returning.
 - Direct CLI tool arguments must not carry credentials; use profile environment references.
 - Keep format-specific agent details in `migration.py`; do not weaken the validated Irigate profile model to accept foreign config shapes.
 

@@ -5,6 +5,7 @@ runtime_report_path: .irigate/runtime-report.json
 
 upstreams:
   context7:
+    description: Resolve library identifiers and query current library documentation.
     transport: stdio
     command: npx
     args: ["-y", "@upstash/context7-mcp"]
@@ -16,6 +17,7 @@ upstreams:
     idle_timeout_seconds: 300
 
   code-review-graph:
+    description: Explore code structure, impact, execution flows, and test relationships.
     transport: stdio
     command: code-review-graph
     args: ["serve"]

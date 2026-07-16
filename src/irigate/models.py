@@ -49,6 +49,7 @@ class UpstreamConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    description: Annotated[str | None, Field(min_length=1, max_length=500)] = None
     transport: Literal["stdio"] = "stdio"
     command: str
     args: tuple[str, ...] = ()
@@ -62,6 +63,16 @@ class UpstreamConfig(BaseModel):
     idle_timeout_seconds: Annotated[float, Field(gt=0, le=86400)]
     failure_threshold: Annotated[int, Field(ge=1, le=100)] = 5
     crash_threshold: Annotated[int, Field(ge=1, le=100)] = 2
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("description must contain non-whitespace text")
+        return stripped
 
     @field_validator("command")
     @classmethod

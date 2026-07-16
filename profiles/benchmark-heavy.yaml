@@ -5,6 +5,7 @@ runtime_report_path: .irigate/benchmark-heavy-report.json
 
 upstreams:
   context7:
+    description: Resolve library identifiers and query current library documentation.
     transport: stdio
     command: npx
     args: ["-y", "@upstash/context7-mcp"]
@@ -16,6 +17,7 @@ upstreams:
     idle_timeout_seconds: 300
 
   github:
+    description: Manage GitHub repositories, issues, pull requests, and workflows.
     transport: stdio
     command: docker
     args: ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"]
@@ -27,6 +29,7 @@ upstreams:
     idle_timeout_seconds: 300
 
   filesystem:
+    description: Read and modify files under the explicitly supplied workspace.
     transport: stdio
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "{filesystem.workspace|github.workspace|workspace}"]
@@ -43,6 +46,7 @@ upstreams:
     idle_timeout_seconds: 300
 
   playwright:
+    description: Automate an isolated browser with Playwright.
     transport: stdio
     command: npx
     args: ["@playwright/mcp@latest"]
@@ -53,6 +57,7 @@ upstreams:
     idle_timeout_seconds: 300
 
   chrome-devtools:
+    description: Inspect and automate Chrome through the DevTools protocol.
     transport: stdio
     command: npx
     args: ["chrome-devtools-mcp@latest"]
@@ -63,6 +68,7 @@ upstreams:
     idle_timeout_seconds: 300
 
   chrome-devtools-win:
+    description: Inspect and automate the Windows Chrome instance through DevTools.
     transport: stdio
     command: cmd.exe
     args: ["/c", "npx", "-y", "chrome-devtools-mcp@latest", "--autoConnect", "--no-usage-statistics"]
@@ -73,6 +79,7 @@ upstreams:
     idle_timeout_seconds: 300
 
   git:
+    description: Inspect and modify the Git repository in the supplied workspace.
     transport: stdio
     command: uvx
     args: ["mcp-server-git", "--repository", "{git.workspace|filesystem.workspace|github.workspace|workspace}"]
@@ -89,6 +96,7 @@ upstreams:
     idle_timeout_seconds: 300
 
   open-scaffold:
+    description: Analyze and scaffold changes in the supplied repository workspace.
     transport: stdio
     command: npx
     args: ["-y", "open-scaffold@latest", "mcp", "serve", "--repo", "{open-scaffold.workspace|git.workspace|filesystem.workspace|github.workspace|workspace}"]
@@ -105,6 +113,7 @@ upstreams:
     idle_timeout_seconds: 300
 
   github-triage:
+    description: Triage GitHub issues and repository activity.
     transport: stdio
     command: npx
     args: ["-y", "@modelcontextprotocol/server-github"]
@@ -116,6 +125,7 @@ upstreams:
     idle_timeout_seconds: 300
 
   astro-docs:
+    description: Search current Astro framework documentation.
     transport: stdio
     command: npx
     args: ["-y", "mcp-remote", "https://mcp.docs.astro.build/mcp"]

@@ -88,6 +88,7 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 - **No request-delivered credentials.** Credentials must never be accepted through URLs, query parameters, command arguments, logs, or committed profiles. Runtime configuration may reference broker-process environment variables without exposing their values.
 - **Optional agent selection.** A bare downstream MCP URL exposes all configured upstreams. Explicit tool or upstream selectors narrow that set; reverse-only selection intentionally follows future profile additions and is not least privilege.
 - **Per-session inputs fail closed.** The supported input is a required `workspace` directory on an isolated upstream; filesystem is an example consumer, not part of the input contract. Ordered placeholders may reuse one supplied workspace across upstreams through scoped-to-global source fallbacks. Configuration, canonical allowed-root authorization, HTTP parsing, immutable downstream-session binding, worker-local argument rendering, and input-keyed process isolation are implemented and documented. Shipped profiles must use explicit `allowed_roots`.
+- **Progressive disclosure is optional and exact.** The bundled Agent Skill discovers static upstream metadata, one upstream's brief tools, one exact schema, and one exact CLI call. It does not add a daemon, generic dispatcher, or alternate downstream transport; exact tool names remain visible to approval and audit surfaces.
 
 ## Codebase exploration — mandatory graph-first workflow
 

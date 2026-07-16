@@ -12,6 +12,7 @@ Validated static broker profiles used by the package, runtime qualification, and
 ## Local Contracts
 
 - Profile files conform to `irigate.models.BrokerConfig` and contain no credential values.
+- Shipped upstreams include concise descriptions so progressive metadata discovery is useful without process startup.
 - Environment entries, when needed, use `${ENV_NAME}` references resolved only from the broker process.
 - The MVP code-review-graph upstream uses the installed `code-review-graph` executable directly and resolves the broker user's global `~/.code-review-graph/registry.json`; repository paths passed to its tools remain absolute.
 - Remote Streamable HTTP upstreams use a reviewed stdio bridge because the broker accepts stdio upstreams only.

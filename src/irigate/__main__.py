@@ -11,6 +11,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import uvicorn
+from mcp import types
 
 from irigate import __version__
 from irigate.app import create_app
@@ -31,7 +32,7 @@ from irigate.restart import (
     reload_running,
     stop_running,
 )
-from irigate.selection import parse_selection
+from irigate.selection import SelectionError, parse_selection
 
 
 CONFIG_ENVIRONMENT_VARIABLE = "IRIGATE_CONFIG"
@@ -79,6 +80,20 @@ def build_parser() -> argparse.ArgumentParser:
         "tools", help="start configured upstreams and list namespaced tools"
     )
     tools.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
+    tools.add_argument("--upstream", help="discover only this configured upstream")
+    tools.add_argument(
+        "--json",
+        action="store_true",
+        help="print tool names and descriptions as JSON",
+    )
+    upstreams = subcommands.add_parser(
+        "upstreams", help="list configured upstream metadata without starting processes"
+    )
+    upstreams.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
+    upstreams.add_argument("--json", action="store_true", help="print metadata as JSON")
+    schema = subcommands.add_parser("schema", help="print one exact namespaced tool schema")
+    schema.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
+    schema.add_argument("tool", help="exact namespaced tool name")
     call = subcommands.add_parser("call", help="call one namespaced MCP tool")
     call.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     call.add_argument("tool", help="namespaced tool name")
@@ -105,6 +120,9 @@ def build_parser() -> argparse.ArgumentParser:
         description=f"Irigate {__version__}: gracefully stop a running Irigate server",
     )
     stop.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
+    subcommands.add_parser(
+        "skill-path", help="print the bundled progressive-disclosure Agent Skill path"
+    )
     migrate = subcommands.add_parser(
         "migrate", help="move installed agent stdio MCP servers behind Irigate"
     )
@@ -140,12 +158,39 @@ def select_migration_paths(source: str | None, migrate_all: bool) -> list[Path]:
     return [candidate.path for index, candidate in enumerate(candidates, start=1) if index in indexes]
 
 
-async def list_configured_tools(config: BrokerConfig) -> list[str]:
+def configured_upstream_metadata(
+    config: BrokerConfig,
+) -> list[dict[str, str | None]]:
+    return [
+        {"name": key, "description": upstream.description}
+        for key, upstream in config.upstreams.items()
+    ]
+
+
+async def discover_configured_tools(
+    config: BrokerConfig, upstream: str | None = None
+) -> list[types.Tool]:
     broker = Broker(config)
     await broker.start()
     try:
-        selection = parse_selection((), config.upstreams)
-        return [tool.name for tool in await broker.list_tools(selection)]
+        query = () if upstream is None else (("upstreams", upstream),)
+        selection = parse_selection(query, config.upstreams)
+        return await broker.list_tools(selection)
+    finally:
+        await broker.close()
+
+
+async def discover_configured_tool_schema(
+    config: BrokerConfig, tool_name: str
+) -> types.Tool:
+    broker = Broker(config)
+    await broker.start()
+    try:
+        selection = parse_selection((("tools", tool_name),), config.upstreams)
+        tools = await broker.list_tools(selection)
+        if len(tools) != 1 or tools[0].name != tool_name:
+            raise BrokerInitializationError(f"tool '{tool_name}' is unavailable")
+        return tools[0]
     finally:
         await broker.close()
 
@@ -277,6 +322,9 @@ def format_process_report(report: dict[str, object]) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config_path = resolve_config_path(args.config)
+    if args.command == "skill-path":
+        print(Path(__file__).parent / "agent_skill")
+        return 0
     if args.command == "migrate":
         try:
             paths = select_migration_paths(args.source, args.all)
@@ -291,7 +339,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         config = load_config(config_path)
-        if args.command not in {"ps", "reload", "stop"}:
+        if args.command not in {"upstreams", "ps", "reload", "stop"}:
             config.resolve_environment()
     except ConfigurationError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
@@ -304,14 +352,51 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"{key}={status}")
         return 0 if all(result.admitted for result in results.values()) else 1
 
+    if args.command == "upstreams":
+        upstreams = configured_upstream_metadata(config)
+        if args.json:
+            print(
+                json.dumps(
+                    {"profile": config.name, "upstreams": upstreams},
+                    separators=(",", ":"),
+                )
+            )
+        else:
+            for upstream in upstreams:
+                description = upstream["description"] or ""
+                print(f"{upstream['name']}\t{description}".rstrip())
+        return 0
+
     if args.command == "tools":
         try:
-            tool_names = asyncio.run(list_configured_tools(config))
-        except BrokerInitializationError as exc:
+            discovered_tools = asyncio.run(
+                discover_configured_tools(config, upstream=args.upstream)
+            )
+        except (BrokerInitializationError, SelectionError) as exc:
             print(f"tool discovery error: {exc}", file=sys.stderr)
             return 1
-        for tool_name in tool_names:
-            print(tool_name)
+        if args.json:
+            print(
+                json.dumps(
+                    [
+                        {"name": tool.name, "description": tool.description}
+                        for tool in discovered_tools
+                    ],
+                    separators=(",", ":"),
+                )
+            )
+        else:
+            for tool in discovered_tools:
+                print(tool.name)
+        return 0
+
+    if args.command == "schema":
+        try:
+            tool = asyncio.run(discover_configured_tool_schema(config, args.tool))
+        except (BrokerInitializationError, SelectionError) as exc:
+            print(f"schema discovery error: {exc}", file=sys.stderr)
+            return 1
+        print(tool.model_dump_json(exclude_none=True))
         return 0
 
     if args.command == "call":
