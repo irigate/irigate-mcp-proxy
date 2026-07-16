@@ -22,6 +22,7 @@ It is not an enterprise gateway. Remote access, tenant identity, authorization, 
 7. `AuditLog` writes exactly one metadata-only JSON-line record for every completed or rejected call.
 8. `migration` discovers common installed-agent configuration paths or accepts one explicit file, converts selected stdio definitions into isolated Irigate upstreams, and rewrites each agent to use the loopback Streamable HTTP endpoint.
 9. `restart` maintains credential-free process-control state beside the runtime report so a separate CLI process can validate and signal an immediate reload or graceful stop of the selected server.
+10. The optional bundled Agent Skill uses CLI-only progressive disclosure: static upstream metadata, one upstream's brief tool list, one exact schema, then one exact call. It does not add a downstream transport or generic dispatcher.
 
 ## Configuration contract
 
@@ -30,6 +31,7 @@ The CLI resolves the profile path in this order: explicit `--config`, the `IRIGA
 Profiles define:
 
 - Loopback host and port.
+- Optional short upstream descriptions for progressive metadata discovery.
 - Upstream key, stdio command, arguments, and literal or referenced environment values.
 - Explicit `shareable` mode and qualifier name.
 - Explicit `serial` or `parallel` concurrency.
@@ -41,6 +43,7 @@ Profiles define:
 Constraints:
 
 - Upstream keys are unique and valid routing prefixes.
+- Upstream descriptions are optional, non-empty when present, and limited to 500 characters.
 - Commands and arguments must not carry credentials.
 - Environment values are strings. Exact `${ENV_NAME}` values reference the broker process environment; other strings are passed literally. Credentials belong in references, not profile literals.
 - Unknown environment references fail during loading.
@@ -128,7 +131,8 @@ Neither surface may contain arguments, results, environment values, commands, au
 - `src/irigate/runtime_report.py` — counters and atomic metadata-only snapshots.
 - `src/irigate/restart.py` — credential-free process-control documents, process identity validation, immediate reload signaling, and graceful stop signaling.
 - `src/irigate/audit.py` — one metadata-only call record per outcome.
-- `src/irigate/__main__.py` — `--check`, runtime tool discovery, direct tool calls, `ps`, `reload`, `stop`, `qualify`, and serving CLI contracts.
+- `src/irigate/__main__.py` — `--check`, progressive upstream/tool/schema discovery, bundled-skill location, direct tool calls, `ps`, `reload`, `stop`, `qualify`, and serving CLI contracts.
+- `src/irigate/agent_skill/SKILL.md` — optional AgentSkills-compatible progressive-disclosure workflow and safety contract.
 - `profiles/` — static runtime and benchmark profiles.
 - `scripts/` — compatibility and resource-measurement harnesses.
 - `tests/` — executable contracts and credential-free MCP fixtures.
@@ -189,12 +193,16 @@ uv run --frozen pytest -q
 uv run --frozen python -m irigate --config profiles/mvp.yaml --check
 uv run --frozen python -m irigate --config profiles/benchmark-heavy.yaml --check
 uv run --frozen python -m irigate --version
+uv run --frozen python -m irigate skill-path
 ```
 
 Environment-dependent evidence checks:
 
 ```bash
 uv run --frozen python -m irigate tools --config profiles/mvp.yaml
+uv run --frozen python -m irigate upstreams --config profiles/mvp.yaml --json
+uv run --frozen python -m irigate tools --config profiles/mvp.yaml --upstream context7 --json
+uv run --frozen python -m irigate schema --config profiles/mvp.yaml context7__resolve-library-id
 uv run --frozen python -m irigate call --config profiles/mvp.yaml <upstream>__<tool> --arguments '{}'
 uv run --frozen python -m irigate ps --config profiles/mvp.yaml
 uv run --frozen python -m irigate reload --config profiles/mvp.yaml
@@ -211,6 +219,10 @@ Migration tests must prove common-path discovery, explicit-file-only scope, JSON
 Root `irigate --help` lists every subcommand and identifies the running package version. `irigate reload --help` and `irigate stop --help` repeat the version, while `irigate --version` emits only `irigate <version>` for scripts and stale-install diagnosis.
 
 `irigate tools --config <profile>` initializes every configured upstream, prints one namespaced tool name per line, and closes all discovery workers before exiting. It is runtime discovery rather than static validation, so package downloads, network access, and referenced environment variables may be required.
+
+`irigate upstreams --config <profile> [--json]` emits only profile-defined upstream names and optional descriptions. It does not resolve child environment references or start processes. `irigate tools --upstream <key> --json` initializes only that upstream and emits names and descriptions without input schemas. `irigate schema <upstream>__<tool>` initializes only the selected upstream and emits one complete tool definition. Every runtime discovery command closes its workers before returning, so isolated upstream state does not survive between CLI invocations.
+
+`irigate skill-path` prints the installed `src/irigate/agent_skill` directory without loading a broker profile. The bundled skill preserves the explicit metadata → brief tools → exact schema → exact call sequence and must not replace exact names with a generic dispatcher.
 
 `irigate call --config <profile> <upstream>__<tool> [--arguments <JSON-object>]` invokes one namespaced tool without opening the HTTP listener. It writes the complete MCP result as JSON, maps successful/tool-error results to exit codes `0`/`1`, rejects malformed or non-object arguments with exit code `2`, and closes the selected worker before exiting. Credentials remain broker-process environment values and must not be supplied in tool arguments.
 

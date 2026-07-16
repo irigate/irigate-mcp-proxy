@@ -19,6 +19,8 @@ Irigate is a loopback-only MCP broker. It lets local agent sessions share explic
 | **◇** | **Metadata-only observability**<br>Record outcomes, durations, reuse, failures, and process counts without payloads, commands, or credentials. | **⚖** | **Measured compatibility**<br>Run qualification, multi-client compatibility checks, and repeatable 1/5/20-client resource benchmarks. |
 | **⌘** | **Direct CLI tool calls**<br>Invoke one namespaced MCP tool from automation without starting the HTTP listener. | **▦** | **Process and usage inspection**<br>Use `irigate ps` to see live instances, busy/idle state, idle duration and timeout, and per-agent usage. |
 
+An optional bundled Agent Skill provides progressive disclosure for large tool catalogs: inspect configured upstream metadata, list one upstream's brief tool metadata, load one exact schema, then call that tool without registering every schema in the agent context.
+
 ## Development highlights
 
 Per-session inputs let a client supply an approved value when starting an isolated upstream. The currently supported input is a required directory named `workspace`:
@@ -112,6 +114,7 @@ runtime_report_path: .irigate/runtime-report.json
 
 upstreams:
   context7:
+    description: Resolve library identifiers and query current library documentation.
     transport: stdio
     command: npx
     args: ["-y", "@upstash/context7-mcp"]
@@ -179,6 +182,7 @@ An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>
 
 | Field | Required | Default | Contract |
 | --- | --- | --- | --- |
+| `description` | No | — | Short operator-authored purpose used by the optional progressive-disclosure catalog. It never starts the upstream. |
 | `transport` | No | `stdio` | Only `stdio` is supported. |
 | `command` | Yes | — | One executable token. Put command arguments in `args`. |
 | `args` | No | `[]` | Argument list. Environment references and credentials are not accepted. An upstream with `inputs.workspace` must contain exactly one standalone workspace placeholder. Pipe-separated sources are checked left to right and rendered from the canonical session input before process startup. |
@@ -305,6 +309,37 @@ http://127.0.0.1:8765/mcp?upstreams=code-review-graph&agent=codex
 Agent labels are metadata, not authentication. They must be 1–64 letters, digits, dots, underscores, or hyphens and are recorded only after a valid tool call. Omitted labels are grouped as `anonymous`; Irigate does not guess identity from client headers.
 
 ### CLI operations
+
+#### Optional progressive-disclosure Agent Skill
+
+Irigate bundles an AgentSkills-compatible integration for agents that have shell access and need only a few tools from a large catalog. Locate the installed skill and copy that directory into the explicit skill directory used by the agent:
+
+```bash
+irigate skill-path
+cp -R "$(irigate skill-path)" <agent-skill-directory>/irigate-progressive
+```
+
+The skill uses four explicit layers:
+
+```bash
+# Layer 1: static profile metadata; no upstream startup or environment resolution
+irigate upstreams --config profiles/mvp.yaml --json
+
+# Layer 2: names and descriptions from one upstream; schemas are omitted
+irigate tools --config profiles/mvp.yaml --upstream code-review-graph --json
+
+# Layer 3: one exact namespaced schema
+irigate schema --config profiles/mvp.yaml code-review-graph__get_minimal_context_tool
+
+# Layer 4: one exact call
+irigate call --config profiles/mvp.yaml \
+  code-review-graph__get_minimal_context_tool \
+  --arguments '{"repo_root":"/path/to/project","task":"review changes"}'
+```
+
+`upstreams` reads only validated metadata and does not require referenced environment values. `tools`, `schema`, and `call` initialize only the selected upstream and close it before returning. Separate commands therefore do not preserve an isolated upstream session; use the standard Streamable HTTP endpoint for stateful or multi-call workflows. The progressive integration deliberately keeps exact tool names visible instead of adding a generic dispatcher that would hide them from approval and audit surfaces.
+
+#### Tool discovery and calls
 
 List the exact namespaced tools available from a profile before configuring an agent:
 
