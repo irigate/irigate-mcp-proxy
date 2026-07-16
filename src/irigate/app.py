@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import signal
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from contextvars import ContextVar, Token
@@ -23,6 +24,7 @@ from irigate import __version__
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import ConfigurationError, load_config
 from irigate.models import BrokerConfig, UpstreamConfig
+from irigate.restart import RestartControl, remove_control, write_control
 from irigate.selection import InputBindings, Selection, SelectionError, parse_selection
 
 logger = logging.getLogger(__name__)
@@ -102,6 +104,7 @@ def create_app(
     require_qualified_sharing: bool = False,
     config_path: str | Path | None = None,
     reload_interval_seconds: float = 0.5,
+    process_control: tuple[Path, RestartControl] | None = None,
 ) -> Starlette:
     """Create the loopback Streamable HTTP app without starting processes."""
 
@@ -121,6 +124,7 @@ def create_app(
             initial_signature = None
     else:
         initial_signature = None
+    reload_requested = asyncio.Event()
     server: Server[Any] = Server("irigate", version=__version__)
 
     @server.list_tools()
@@ -158,13 +162,22 @@ def create_app(
         assert watched_path is not None
         signature = initial_signature
         while True:
-            await asyncio.sleep(reload_interval_seconds)
+            forced = False
+            try:
+                await asyncio.wait_for(
+                    reload_requested.wait(), timeout=reload_interval_seconds
+                )
+            except TimeoutError:
+                pass
+            else:
+                reload_requested.clear()
+                forced = True
             try:
                 current = watched_path.stat()
                 current_signature = (current.st_mtime_ns, current.st_size, current.st_ino)
             except OSError:
                 current_signature = None
-            if current_signature == signature:
+            if current_signature == signature and not forced:
                 continue
             signature = current_signature
             if current_signature is None:
@@ -186,15 +199,32 @@ def create_app(
     async def lifespan(_app: Starlette) -> AsyncIterator[None]:
         await broker.start()
         watcher: asyncio.Task[None] | None = None
+        reload_signal_installed = False
+        control_written = False
         if config_path is not None:
             watcher = asyncio.create_task(watch_config(), name="irigate-config-watcher")
+            try:
+                asyncio.get_running_loop().add_signal_handler(
+                    signal.SIGHUP, reload_requested.set
+                )
+                reload_signal_installed = True
+            except (NotImplementedError, RuntimeError):
+                logger.warning("SIGHUP reload control is unavailable on this event loop")
         try:
             async with manager.run():
+                if process_control is not None:
+                    write_control(*process_control)
+                    control_written = True
                 yield
         finally:
+            if reload_signal_installed:
+                asyncio.get_running_loop().remove_signal_handler(signal.SIGHUP)
             if watcher is not None:
                 watcher.cancel()
                 await asyncio.gather(watcher, return_exceptions=True)
             await broker.close()
+            if process_control is not None and control_written:
+                path, control = process_control
+                remove_control(path, control.instance_id)
 
     return Starlette(routes=[Route("/mcp", endpoint=endpoint)], lifespan=lifespan)

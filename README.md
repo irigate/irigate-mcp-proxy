@@ -228,14 +228,14 @@ uv run --frozen irigate \
   --require-qualified-sharing
 ```
 
-Inspect the installed version and the default profile path reported by help:
+Inspect the installed version and all available commands:
 
 ```bash
 uv run --frozen irigate --version
 uv run --frozen irigate --help
 ```
 
-The output makes a stale installed executable visible before runtime diagnosis.
+The root help lists `reload` and `stop`; each command's `--help` output also identifies the running Irigate version so a stale installed executable is visible immediately.
 
 The broker listens at `http://127.0.0.1:8765/mcp` without starting upstreams. A client may use the bare URL to expose all configured upstreams, or add a selector to narrow the set. Qualification, schema discovery, and process startup happen on first use. Each upstream's `idle_timeout_seconds` shuts down that process independently after inactivity; the next routed call starts a fresh process without changing the downstream session.
 
@@ -333,6 +333,20 @@ uv run --frozen irigate ps --config profiles/mvp.yaml --json
 
 Each table row identifies an upstream/agent pair and shows effective mode, live process count, activity state (`busy`, `idle`, or `stopped`), elapsed idle time, configured idle timeout, calls, and failures. `IDLE_FOR` is `-` while busy or stopped; while idle it is calculated from the report's UTC `idle_since` timestamp, so it continues advancing between report writes. `--json` returns the complete schema-version-3 report, including `activity_state`, `active_calls`, `idle_since`, and `idle_timeout_seconds`, for automation. This command reads `runtime_report_path` without starting upstreams or resolving their environment references; a report left by a stopped broker retains cumulative usage from that run.
 
+Gracefully stop the server selected by the same profile:
+
+```bash
+uv run --frozen irigate stop --config profiles/mvp.yaml
+```
+
+Request an immediate connection-preserving profile reload:
+
+```bash
+uv run --frozen irigate reload --config profiles/mvp.yaml
+```
+
+Serving writes a credential-free `<runtime_report_path>.control` document containing the profile, canonical configuration path, PID, instance ID, and package version. Both commands treat that document as an untrusted claim: they check the selected profile and configuration path and verify that the PID is a live Irigate process. `reload` sends `SIGHUP` to wake the same atomic reload path used by profile watching; exit `0` confirms delivery, while validation or activation failures remain in the server log and leave the last valid configuration active. `stop` sends `SIGTERM` and waits for normal application and child-process cleanup. Neither command resolves upstream environment references. A missing `runtime_report_path`, stale or mismatched control document, non-Irigate PID, or signal failure fails without signaling another process; `stop` also fails when cleanup is not observed.
+
 An agent can combine Irigate with a directly managed MCP server:
 
 ```yaml
@@ -344,7 +358,7 @@ mcp_servers:
     args: [serve]
 ```
 
-Stop the broker with `Ctrl+C`; shutdown drains active calls and closes child processes.
+For a foreground broker, `Ctrl+C` remains equivalent operationally: shutdown drains active calls and closes child processes.
 
 Strict mode rejects the first selected use of Context7 if it cannot be qualified. Omit `--require-qualified-sharing` to downgrade failed selected shared upstreams to isolated mode.
 

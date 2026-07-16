@@ -8,11 +8,11 @@ import sys
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 import uvicorn
 
 from irigate import __version__
-
 from irigate.app import create_app
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import ConfigurationError, load_config
@@ -23,6 +23,14 @@ from irigate.migration import (
 )
 from irigate.models import BrokerConfig
 from irigate.qualification import qualify_config
+from irigate.restart import (
+    CONTROL_SCHEMA_VERSION,
+    RestartControl,
+    RestartError,
+    control_path,
+    reload_running,
+    stop_running,
+)
 from irigate.selection import parse_selection
 
 
@@ -83,6 +91,20 @@ def build_parser() -> argparse.ArgumentParser:
     ps = subcommands.add_parser("ps", help="show MCP upstream and agent usage")
     ps.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     ps.add_argument("--json", action="store_true", help="print the runtime report as JSON")
+    reload_command = subcommands.add_parser(
+        "reload",
+        help="request an immediate profile reload",
+        description=f"Irigate {__version__}: request an immediate profile reload",
+    )
+    reload_command.add_argument(
+        "--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP
+    )
+    stop = subcommands.add_parser(
+        "stop",
+        help="gracefully stop a running Irigate server",
+        description=f"Irigate {__version__}: gracefully stop a running Irigate server",
+    )
+    stop.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     migrate = subcommands.add_parser(
         "migrate", help="move installed agent stdio MCP servers behind Irigate"
     )
@@ -269,7 +291,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         config = load_config(config_path)
-        if args.command != "ps":
+        if args.command not in {"ps", "reload", "stop"}:
             config.resolve_environment()
     except ConfigurationError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
@@ -325,6 +347,32 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(output)
         return 0
 
+    if args.command == "stop":
+        try:
+            stop_running(
+                control_path(config.runtime_report_path),
+                expected_profile=config.name,
+                expected_config_path=config_path.resolve(),
+            )
+        except RestartError as exc:
+            print(f"stop error: {exc}", file=sys.stderr)
+            return 1
+        print("Irigate stopped")
+        return 0
+
+    if args.command == "reload":
+        try:
+            reload_running(
+                control_path(config.runtime_report_path),
+                expected_profile=config.name,
+                expected_config_path=config_path.resolve(),
+            )
+        except RestartError as exc:
+            print(f"reload error: {exc}", file=sys.stderr)
+            return 1
+        print("Irigate reload requested")
+        return 0
+
     if args.check:
         upstreams = ",".join(config.upstreams)
         environment = ",".join(sorted(config.environment_names)) or "none"
@@ -336,11 +384,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"runtime_report={config.runtime_report_path}")
         return 0
 
+    process_control = None
+    if config.runtime_report_path is not None:
+        control = RestartControl(
+            schema_version=CONTROL_SCHEMA_VERSION,
+            profile=config.name,
+            config_path=str(config_path.resolve()),
+            pid=os.getpid(),
+            instance_id=uuid4().hex,
+            version=__version__,
+        )
+        process_control = (control_path(config.runtime_report_path), control)
     uvicorn.run(
         create_app(
             config,
             require_qualified_sharing=args.require_qualified_sharing,
             config_path=config_path,
+            process_control=process_control,
         ),
         host=config.host,
         port=config.port,

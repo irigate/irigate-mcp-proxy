@@ -21,6 +21,7 @@ It is not an enterprise gateway. Remote access, tenant identity, authorization, 
 6. `RuntimeMetrics` records metadata-only counters and atomically refreshes the configured JSON report.
 7. `AuditLog` writes exactly one metadata-only JSON-line record for every completed or rejected call.
 8. `migration` discovers common installed-agent configuration paths or accepts one explicit file, converts selected stdio definitions into isolated Irigate upstreams, and rewrites each agent to use the loopback Streamable HTTP endpoint.
+9. `restart` maintains credential-free process-control state beside the runtime report so a separate CLI process can validate and signal an immediate reload or graceful stop of the selected server.
 
 ## Configuration contract
 
@@ -87,6 +88,9 @@ Context7 is the qualified shared upstream in `profiles/mvp.yaml`. Its qualifier 
 - Calls have bounded timeouts and report queue and call durations separately.
 - Every worker shuts down independently after `idle_timeout_seconds` with no queued or active calls. The next call creates a fresh worker in the same effective sharing mode.
 - Shutdown stops new work, bounds active-call draining, closes MCP sessions, terminates child processes, and kills only children that outlive the termination interval.
+- A serving process with `runtime_report_path` atomically publishes `<runtime_report_path>.control` after application startup and removes only its own instance record after cleanup.
+- `irigate reload` loads the profile without resolving upstream environments, validates the control document against the profile and canonical configuration path, verifies the PID still runs Irigate, and sends `SIGHUP`. The serving process wakes its existing atomic reload path immediately; profile validation or activation failures still preserve the last valid configuration.
+- `irigate stop` loads the profile without resolving upstream environments, validates the control document against the profile and canonical configuration path, verifies the PID still runs Irigate, sends `SIGTERM`, and waits for owned control-state removal. Missing, stale, mismatched, or timed-out state fails closed.
 - Client disconnects and repeated broker lifecycles must leave no orphan upstream processes.
 - Reload drains retired workers after the replacement routing table is active; unchanged workers continue without restart.
 
@@ -116,14 +120,15 @@ Neither surface may contain arguments, results, environment values, commands, au
 - `src/irigate/workspace.py` — strict canonical directory resolution and segment-based allowed-root authorization.
 - `src/irigate/config.py` — duplicate-safe YAML loading and environment-reference resolution.
 - `src/irigate/migration.py` — installed-agent config discovery, format-specific conversion, backups, and atomic replacement.
-- `src/irigate/app.py` — loopback Streamable HTTP application, selector and agent-label propagation, Origin enforcement, and profile watching.
+- `src/irigate/app.py` — loopback Streamable HTTP application, selector and agent-label propagation, Origin enforcement, profile watching, and serving-process control lifecycle.
 - `src/irigate/broker.py` — deferred activation, selection-scoped tool aggregation, exact routing, input-fingerprinted worker selection, atomic reload, degradation, and shutdown coordination.
 - `src/irigate/selection.py` — typed selector parsing, normalization, and fail-closed set computation.
 - `src/irigate/upstream.py` — stdio worker lifecycle, worker-local argument rendering, concurrency, bounded calls, and process cleanup.
 - `src/irigate/qualification.py` — generic checks, qualifier registry, and sharing admission.
 - `src/irigate/runtime_report.py` — counters and atomic metadata-only snapshots.
+- `src/irigate/restart.py` — credential-free process-control documents, process identity validation, immediate reload signaling, and graceful stop signaling.
 - `src/irigate/audit.py` — one metadata-only call record per outcome.
-- `src/irigate/__main__.py` — `--check`, runtime tool discovery, direct tool calls, `ps`, `qualify`, and serving CLI contracts.
+- `src/irigate/__main__.py` — `--check`, runtime tool discovery, direct tool calls, `ps`, `reload`, `stop`, `qualify`, and serving CLI contracts.
 - `profiles/` — static runtime and benchmark profiles.
 - `scripts/` — compatibility and resource-measurement harnesses.
 - `tests/` — executable contracts and credential-free MCP fixtures.
@@ -192,6 +197,8 @@ Environment-dependent evidence checks:
 uv run --frozen python -m irigate tools --config profiles/mvp.yaml
 uv run --frozen python -m irigate call --config profiles/mvp.yaml <upstream>__<tool> --arguments '{}'
 uv run --frozen python -m irigate ps --config profiles/mvp.yaml
+uv run --frozen python -m irigate reload --config profiles/mvp.yaml
+uv run --frozen python -m irigate stop --config profiles/mvp.yaml
 uv run --frozen python -m irigate qualify --config profiles/mvp.yaml
 uv run --frozen python scripts/compatibility.py --config profiles/mvp.yaml
 uv run --frozen python scripts/benchmark.py --config profiles/benchmark-heavy.yaml --clients 1,5,20 --repetitions 3
@@ -201,10 +208,14 @@ The full test suite must prove default-all behavior, selected-only activation, e
 
 Migration tests must prove common-path discovery, explicit-file-only scope, JSON/YAML/TOML preservation, correct per-agent HTTP fields, environment-reference safety, collision rejection before writes, and adjacent backups.
 
-Root `irigate --help` identifies the running package version and default profile path, while `irigate --version` emits only `irigate <version>` for scripts and stale-install diagnosis.
+Root `irigate --help` lists every subcommand and identifies the running package version. `irigate reload --help` and `irigate stop --help` repeat the version, while `irigate --version` emits only `irigate <version>` for scripts and stale-install diagnosis.
 
 `irigate tools --config <profile>` initializes every configured upstream, prints one namespaced tool name per line, and closes all discovery workers before exiting. It is runtime discovery rather than static validation, so package downloads, network access, and referenced environment variables may be required.
 
 `irigate call --config <profile> <upstream>__<tool> [--arguments <JSON-object>]` invokes one namespaced tool without opening the HTTP listener. It writes the complete MCP result as JSON, maps successful/tool-error results to exit codes `0`/`1`, rejects malformed or non-object arguments with exit code `2`, and closes the selected worker before exiting. Credentials remain broker-process environment values and must not be supplied in tool arguments.
 
 `irigate ps --config <profile> [--json]` reads the configured runtime report without resolving upstream environment references or starting processes. The table emits one upstream/agent row with effective mode, live instances, activity state, elapsed idle time, configured idle timeout, calls, and failures; JSON mode preserves the complete snapshot. Elapsed idle time is computed at read time from the UTC idle-start timestamp. Process liveness reflects the latest atomic write, while usage counters cover only the broker run represented by that report.
+
+`irigate reload --config <profile>` requires `runtime_report_path`, reads no upstream environment values, and sends `SIGHUP` only to the exact live Irigate process whose control document matches the selected profile and canonical configuration path. Exit `0` means the request was delivered; the serving process then runs the same atomic reload path used by file watching. It does not claim that a changed profile was accepted: reload validation and activation failures are logged by the server while the last valid configuration remains active.
+
+`irigate stop --config <profile>` requires `runtime_report_path`, reads no upstream environment values, and targets only the exact live Irigate process whose control document matches the selected profile and canonical configuration path. Exit `0` means the server removed its owned control document after graceful broker cleanup; timeout or any validation mismatch returns nonzero.
