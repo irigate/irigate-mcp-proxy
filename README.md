@@ -228,6 +228,15 @@ uv run --frozen irigate \
   --require-qualified-sharing
 ```
 
+Inspect the installed version and the default profile path reported by help:
+
+```bash
+uv run --frozen irigate --version
+uv run --frozen irigate --help
+```
+
+The output makes a stale installed executable visible before runtime diagnosis.
+
 The broker listens at `http://127.0.0.1:8765/mcp` without starting upstreams. A client may use the bare URL to expose all configured upstreams, or add a selector to narrow the set. Qualification, schema discovery, and process startup happen on first use. Each upstream's `idle_timeout_seconds` shuts down that process independently after inactivity; the next routed call starts a fresh process without changing the downstream session.
 
 ### Agent-side selection

@@ -49,6 +49,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - The first successful Streamable HTTP response binds the selection's immutable input mapping to the MCP session ID. Every later request for that session must present the same canonical mapping; rebinding fails before broker dispatch.
 - Qualification, schema discovery, and process startup occur only when an agent first selects an upstream; concurrent first selection is single-flight per upstream.
 - Exact tool selectors filter `tools/list` and dispatch; process-wide activation by another agent never broadens a request's selection.
+- Root and subcommand CLI help identify `~/.config/irigate/config.yaml` as the default profile file. Root help identifies the running package version, and `--version` prints it directly.
 - Direct CLI calls accept one JSON object, emit the complete MCP result as JSON, return nonzero for tool errors, and close their worker before exiting.
 - Downstream `agent` labels are explicit attribution metadata, not authentication; omitted labels are `anonymous` and Irigate never infers identity.
 - `ps` reads the latest runtime report without resolving environments or starting upstreams and reports busy/idle/stopped state, elapsed idle time, configured idle timeout, and usage in table or JSON form.

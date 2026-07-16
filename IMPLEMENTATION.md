@@ -183,6 +183,7 @@ Canonical local checks:
 uv run --frozen pytest -q
 uv run --frozen python -m irigate --config profiles/mvp.yaml --check
 uv run --frozen python -m irigate --config profiles/benchmark-heavy.yaml --check
+uv run --frozen python -m irigate --version
 ```
 
 Environment-dependent evidence checks:
@@ -199,6 +200,8 @@ uv run --frozen python scripts/benchmark.py --config profiles/benchmark-heavy.ya
 The full test suite must prove default-all behavior, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output. Focused configuration and workspace tests additionally prove input-schema rejection, configured-root expansion, descendant authorization, canonical traversal handling, and symlink-escape rejection.
 
 Migration tests must prove common-path discovery, explicit-file-only scope, JSON/YAML/TOML preservation, correct per-agent HTTP fields, environment-reference safety, collision rejection before writes, and adjacent backups.
+
+Root `irigate --help` identifies the running package version and default profile path, while `irigate --version` emits only `irigate <version>` for scripts and stale-install diagnosis.
 
 `irigate tools --config <profile>` initializes every configured upstream, prints one namespaced tool name per line, and closes all discovery workers before exiting. It is runtime discovery rather than static validation, so package downloads, network access, and referenced environment variables may be required.
 

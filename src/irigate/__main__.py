@@ -11,6 +11,8 @@ from pathlib import Path
 
 import uvicorn
 
+from irigate import __version__
+
 from irigate.app import create_app
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import ConfigurationError, load_config
@@ -26,6 +28,10 @@ from irigate.selection import parse_selection
 
 CONFIG_ENVIRONMENT_VARIABLE = "IRIGATE_CONFIG"
 DEFAULT_CONFIG_PATH = Path("~/.config/irigate/config.yaml")
+CONFIG_PATH_HELP = (
+    f"YAML profile path (default file: {DEFAULT_CONFIG_PATH}; "
+    f"{CONFIG_ENVIRONMENT_VARIABLE} overrides it)"
+)
 
 
 def resolve_config_path(argument: str | None) -> Path:
@@ -34,10 +40,15 @@ def resolve_config_path(argument: str | None) -> Path:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="irigate")
+    parser = argparse.ArgumentParser(
+        prog="irigate", description=f"Irigate {__version__} local MCP broker"
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
     parser.add_argument(
         "--config",
-        help="YAML profile path (overrides IRIGATE_CONFIG and the default)",
+        help=CONFIG_PATH_HELP,
     )
     parser.add_argument(
         "--check",
@@ -54,14 +65,14 @@ def build_parser() -> argparse.ArgumentParser:
         "qualify", help="qualify requested sharing without serving clients"
     )
     qualify.add_argument(
-        "--config", default=argparse.SUPPRESS, help="YAML profile path"
+        "--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP
     )
     tools = subcommands.add_parser(
         "tools", help="start configured upstreams and list namespaced tools"
     )
-    tools.add_argument("--config", default=argparse.SUPPRESS, help="YAML profile path")
+    tools.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     call = subcommands.add_parser("call", help="call one namespaced MCP tool")
-    call.add_argument("--config", default=argparse.SUPPRESS, help="YAML profile path")
+    call.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     call.add_argument("tool", help="namespaced tool name")
     call.add_argument(
         "--arguments",
@@ -70,13 +81,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="tool arguments as a JSON object (default: {})",
     )
     ps = subcommands.add_parser("ps", help="show MCP upstream and agent usage")
-    ps.add_argument("--config", default=argparse.SUPPRESS, help="YAML profile path")
+    ps.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     ps.add_argument("--json", action="store_true", help="print the runtime report as JSON")
     migrate = subcommands.add_parser(
         "migrate", help="move installed agent stdio MCP servers behind Irigate"
     )
     migrate.add_argument("source", nargs="?", help="migrate only this agent configuration")
-    migrate.add_argument("--config", default=argparse.SUPPRESS, help="Irigate profile path")
+    migrate.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     migrate.add_argument(
         "--all", action="store_true", help="migrate every discovered configuration"
     )

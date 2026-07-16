@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
+
+from irigate import __version__
+from irigate.__main__ import build_parser
 
 from irigate.restart import (
     CONTROL_SCHEMA_VERSION,
@@ -115,3 +119,25 @@ def test_process_identity_accepts_irigate_python_and_console_forms(tmp_path: Pat
     assert process_is_irigate(2, proc_root=proc)
     assert not process_is_irigate(3, proc_root=proc)
     assert not process_is_irigate(4, proc_root=proc)
+
+
+def test_cli_help_lists_version_and_default_config(capsys) -> None:
+    parser = build_parser()
+    assert version("irigate") == __version__
+
+    with pytest.raises(SystemExit) as root_exit:
+        parser.parse_args(["--help"])
+    assert root_exit.value.code == 0
+    root_help = capsys.readouterr().out
+    assert f"Irigate {__version__}" in root_help
+    assert "~/.config/irigate/config.yaml" in root_help
+
+    with pytest.raises(SystemExit) as command_exit:
+        parser.parse_args(["tools", "--help"])
+    assert command_exit.value.code == 0
+    assert "~/.config/irigate/config.yaml" in capsys.readouterr().out
+
+    with pytest.raises(SystemExit) as version_exit:
+        parser.parse_args(["--version"])
+    assert version_exit.value.code == 0
+    assert capsys.readouterr().out == f"irigate {__version__}\n"
