@@ -29,6 +29,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Dynamic upstream configuration is limited to a required `workspace` directory input on non-shareable upstreams, rendered through exactly one standalone placeholder. A placeholder may list ordered scoped-to-global sources, such as `{filesystem.workspace|github.workspace|workspace}`; the first supplied source wins and one global value may feed multiple selected upstreams.
 - Each workspace `allowed_roots` entry authorizes its canonical directory and descendants. Leading `~` and braced environment references expand while loading the profile, and environment-derived roots must be absolute.
 - Profile path precedence is explicit `--config`, then `IRIGATE_CONFIG`, then `~/.config/irigate/config.yaml`.
+- `runtime_report_path` is resolved against the profile file's parent directory at load time so a relative path stays portable across serving-process and CLI working directories; absolute paths pass through unchanged.
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields and duplicate YAML keys are errors.
 - `serial` and `parallel` concurrency are explicit per-upstream contracts.
