@@ -66,36 +66,56 @@ Website changes require two commits: commit and push inside `site/` first, then 
 
 The default profile defines real MCP upstreams. An upstream starts only when an agent selects it; its first selected use may download pinned or current package artifacts and require network access.
 
-## Install
+## Installation
 
-Install Irigate as a standard user application from a repository checkout:
+The PyPI distribution name is `irigate`, but no release is published there yet. Once a release is available, install it as a standard user application:
+
+```bash
+uv tool install irigate
+```
+
+`uv` installs the released version in an isolated tool environment and provides the `irigate` console script from its tool bin directory. Ensure that directory—normally `~/.local/bin`—is on `PATH`; run `uv tool update-shell` if needed. Until the first release, use the snapshot development installation below.
+
+## Development installation
+
+When working from a repository checkout—either to develop Irigate itself or to test a local change—pick the mode that matches how you intend to use the checkout.
+
+### Live edit mode (`--editable`)
+
+```bash
+uv tool install --editable .
+```
+
+This installs a `.pth` shim that points back at `src/` in the checkout. Source edits take effect the next time you invoke `irigate`; no reinstall is needed. Use this when developing or debugging Irigate.
+
+### Snapshot mode (`--force --from .`)
 
 ```bash
 uv tool install --force --from . irigate
 ```
 
-`uv` installs the launcher in `~/.local/bin/irigate` and manages its dependencies in an isolated environment. Ensure `~/.local/bin` is on `PATH`, then use `irigate` without activating the project virtual environment:
+This builds a regular installation from the checkout and copies the package into uv's tool environment. The installed tool is frozen at the current source state; later edits are invisible until you reinstall. Use this to exercise the checkout as a release-like build without allowing local edits to affect the running tool.
+
+### When to choose which
+
+| Goal | Mode |
+| --- | --- |
+| Developing or debugging Irigate | Live edit (`--editable .`) |
+| Trying the current checkout as a release-like build | Snapshot (`--force --from . irigate`) |
+| Switching back to live edits after a snapshot install | `uv tool install --editable .` (overwrites the snapshot) |
+| Returning to the released version after a checkout install | `uv tool install --force irigate` (after the first PyPI release) |
+
+The `--force` flag in snapshot mode matters when Irigate is already installed in that tool environment: it forces replacement instead of skipping the existing installation. Omit it on a clean install. Remove either installation with `uv tool uninstall irigate`.
+
+### Project environment
+
+Tool installation does not install test dependencies into the checkout. Create the locked project environment before running the test suite or repository commands:
 
 ```bash
-irigate --help
-irigate --config profiles/mvp.yaml --check
-```
-
-Reinstall after updating the checkout, or remove the application:
-
-```bash
-uv tool install --force --from . irigate
-uv tool uninstall irigate
-```
-
-For development, create the project environment from the locked dependencies instead:
-
-```bash
-cd irigate-proxy
 uv sync --frozen
 ```
 
-Run the development checkout and confirm that the default profile loads without starting upstream processes:
+Run the checkout and confirm that the default profile loads without starting upstream processes:
 
 ```bash
 uv run --frozen irigate --help
