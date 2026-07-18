@@ -82,6 +82,37 @@ def test_loads_valid_profile_and_resolves_environment_by_name(
     }
 
 
+def test_relative_runtime_report_path_is_anchored_to_profile_directory(
+    tmp_path: Path,
+) -> None:
+    config = load_config(write_profile(tmp_path, VALID_PROFILE))
+
+    assert config.runtime_report_path == (tmp_path / ".irigate/report.json").resolve()
+
+
+def test_absolute_runtime_report_path_is_preserved(tmp_path: Path) -> None:
+    profile = VALID_PROFILE.replace(
+        "runtime_report_path: .irigate/report.json",
+        "runtime_report_path: /var/log/irigate/runtime.json",
+    )
+
+    config = load_config(write_profile(tmp_path, profile))
+
+    assert config.runtime_report_path == Path("/var/log/irigate/runtime.json")
+
+
+def test_missing_runtime_report_path_stays_unset(tmp_path: Path) -> None:
+    profile = "\n".join(
+        line
+        for line in VALID_PROFILE.splitlines()
+        if not line.startswith("runtime_report_path")
+    )
+
+    config = load_config(write_profile(tmp_path, profile))
+
+    assert config.runtime_report_path is None
+
+
 def test_rejects_duplicate_yaml_keys(tmp_path: Path) -> None:
     profile = VALID_PROFILE.replace("port: 8765", "port: 8765\nport: 9000")
 

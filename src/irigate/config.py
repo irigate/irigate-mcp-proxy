@@ -80,6 +80,12 @@ def load_config(path: str | Path) -> BrokerConfig:
         raise ConfigurationError("configuration root must be a mapping")
 
     try:
-        return BrokerConfig.model_validate(raw)
+        config = BrokerConfig.model_validate(raw)
     except ValidationError as exc:
         raise ConfigurationError(_format_validation_error(exc)) from exc
+
+    if config.runtime_report_path is not None and not config.runtime_report_path.is_absolute():
+        config = config.model_copy(
+            update={"runtime_report_path": (profile_path.parent / config.runtime_report_path).resolve()}
+        )
+    return config
