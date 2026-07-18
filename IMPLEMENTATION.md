@@ -37,7 +37,7 @@ Profiles define:
 - Explicit `shareable` mode and qualifier name.
 - Explicit `serial` or `parallel` concurrency.
 - Required per-upstream idle timeout, call timeout, and degradation thresholds.
-- Optional runtime-report path.
+- A profile-scoped runtime-report path under `${XDG_STATE_HOME:-~/.local/state}/irigate/<name>/runtime-report.json` by default, with an optional exact profile override.
 - Optional per-upstream working directory, passed unchanged to the stdio process launcher.
 - Optional required `workspace` directory input for a non-shareable upstream, with canonical allowed-root patterns and one standalone placeholder containing ordered scoped-to-global sources.
 
@@ -92,7 +92,7 @@ Context7 is the qualified shared upstream in `profiles/mvp.yaml`. Its qualifier 
 - Calls have bounded timeouts and report queue and call durations separately.
 - Every worker shuts down independently after `idle_timeout_seconds` with no queued or active calls. The next call creates a fresh worker in the same effective sharing mode.
 - Shutdown stops new work, bounds active-call draining, closes MCP sessions, terminates child processes, and kills only children that outlive the termination interval.
-- A serving process with `runtime_report_path` atomically publishes `<runtime_report_path>.control` after application startup and removes only its own instance record after cleanup. The path is anchored to the profile directory at load time, so the serving process and any later `irigate reload`/`irigate stop` invocation resolve it to the same absolute path regardless of their current working directories.
+- A serving process atomically publishes `<effective-runtime-report-path>.control` after application startup and removes only its own instance record after cleanup. An omitted override uses the profile-scoped XDG state path; a relative override is anchored to the profile directory. The serving process and any later `irigate reload`/`irigate stop` invocation therefore resolve the same absolute path regardless of their current working directories.
 - `irigate reload` loads the profile without resolving upstream environments, validates the control document against the profile and canonical configuration path, verifies the PID still runs Irigate, and sends `SIGHUP`. The serving process wakes its existing atomic reload path immediately; profile validation or activation failures still preserve the last valid configuration.
 - `irigate stop` loads the profile without resolving upstream environments, validates the control document against the profile and canonical configuration path, verifies the PID still runs Irigate, sends `SIGTERM`, and waits for owned control-state removal. Missing, stale, mismatched, or timed-out state fails closed.
 - Client disconnects and repeated broker lifecycles must leave no orphan upstream processes.
@@ -237,8 +237,8 @@ Root `irigate --help` lists every subcommand and identifies the running package 
 
 `irigate logs --config <profile> [-f]` prints the newest start-scoped log from the profile's configured or default runtime log directory without resolving upstream environment references or starting processes. `-f` keeps stdout open and flushes each appended JSON-line record. It follows the selected file; a later broker start creates a new file and requires a new `logs -f` invocation.
 
-`irigate reload --config <profile>` requires `runtime_report_path`, reads no upstream environment values, and sends `SIGHUP` only to the exact live Irigate process whose control document matches the selected profile and canonical configuration path. Exit `0` means the request was delivered; the serving process then runs the same atomic reload path used by file watching. It does not claim that a changed profile was accepted: reload validation and activation failures are logged by the server while the last valid configuration remains active.
+`irigate reload --config <profile>` uses the configured or default runtime-report path, reads no upstream environment values, and sends `SIGHUP` only to the exact live Irigate process whose control document matches the selected profile and canonical configuration path. Exit `0` means the request was delivered; the serving process then runs the same atomic reload path used by file watching. It does not claim that a changed profile was accepted: reload validation and activation failures are logged by the server while the last valid configuration remains active.
 
-`irigate stop --config <profile>` requires `runtime_report_path`, reads no upstream environment values, and targets only the exact live Irigate process whose control document matches the selected profile and canonical configuration path. Exit `0` means the server removed its owned control document after graceful broker cleanup; timeout or any validation mismatch returns nonzero.
+`irigate stop --config <profile>` uses the configured or default runtime-report path, reads no upstream environment values, and targets only the exact live Irigate process whose control document matches the selected profile and canonical configuration path. Exit `0` means the server removed its owned control document after graceful broker cleanup; timeout or any validation mismatch returns nonzero.
 
 Process identity recognizes module execution (`python -m irigate`), direct console-script argv, and the real shebang shape used by uv/pip installations (`python <absolute-bin-path>/irigate`). Other Python scripts remain invalid process-control targets.

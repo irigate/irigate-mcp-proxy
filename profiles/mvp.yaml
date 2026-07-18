@@ -1,7 +1,6 @@
 name: mvp
 host: 127.0.0.1
 port: 8765
-runtime_report_path: .irigate/runtime-report.json
 
 upstreams:
   context7:

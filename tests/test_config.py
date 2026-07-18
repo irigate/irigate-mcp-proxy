@@ -101,7 +101,11 @@ def test_absolute_runtime_report_path_is_preserved(tmp_path: Path) -> None:
     assert config.runtime_report_path == Path("/var/log/irigate/runtime.json")
 
 
-def test_missing_runtime_report_path_stays_unset(tmp_path: Path) -> None:
+def test_missing_runtime_report_path_uses_xdg_state_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_home = tmp_path / "state"
+    monkeypatch.setenv("XDG_STATE_HOME", str(state_home))
     profile = "\n".join(
         line
         for line in VALID_PROFILE.splitlines()
@@ -110,7 +114,34 @@ def test_missing_runtime_report_path_stays_unset(tmp_path: Path) -> None:
 
     config = load_config(write_profile(tmp_path, profile))
 
-    assert config.runtime_report_path is None
+    assert config.runtime_report_path == (
+        state_home / "irigate/test-profile/runtime-report.json"
+    )
+
+
+@pytest.mark.parametrize("xdg_state_home", [None, "", "relative/state"])
+def test_missing_runtime_report_path_falls_back_to_local_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    xdg_state_home: str | None,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    if xdg_state_home is None:
+        monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+    else:
+        monkeypatch.setenv("XDG_STATE_HOME", xdg_state_home)
+    profile = "\n".join(
+        line
+        for line in VALID_PROFILE.splitlines()
+        if not line.startswith("runtime_report_path")
+    )
+
+    config = load_config(write_profile(tmp_path, profile))
+
+    assert config.runtime_report_path == (
+        home / ".local/state/irigate/test-profile/runtime-report.json"
+    )
 
 
 def test_relative_runtime_log_path_is_anchored_to_profile_directory(

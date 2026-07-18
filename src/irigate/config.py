@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +36,16 @@ def _construct_unique_mapping(
 _UniqueKeyLoader.add_constructor(
     yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_unique_mapping
 )
+
+
+def default_runtime_report_path(profile_name: str) -> Path:
+    """Return the profile-scoped XDG state path for runtime process state."""
+
+    configured_state_home = os.environ.get("XDG_STATE_HOME")
+    state_home = Path(configured_state_home).expanduser() if configured_state_home else None
+    if state_home is None or not state_home.is_absolute():
+        state_home = Path.home() / ".local" / "state"
+    return state_home / "irigate" / profile_name / "runtime-report.json"
 
 
 def _format_validation_error(error: ValidationError) -> str:
@@ -84,7 +95,11 @@ def load_config(path: str | Path) -> BrokerConfig:
     except ValidationError as exc:
         raise ConfigurationError(_format_validation_error(exc)) from exc
 
-    if config.runtime_report_path is not None and not config.runtime_report_path.is_absolute():
+    if config.runtime_report_path is None:
+        config = config.model_copy(
+            update={"runtime_report_path": default_runtime_report_path(config.name)}
+        )
+    elif not config.runtime_report_path.is_absolute():
         config = config.model_copy(
             update={"runtime_report_path": (profile_path.parent / config.runtime_report_path).resolve()}
         )

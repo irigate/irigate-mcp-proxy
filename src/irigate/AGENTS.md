@@ -30,7 +30,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Dynamic upstream configuration is limited to a required `workspace` directory input on non-shareable upstreams, rendered through exactly one standalone placeholder. A placeholder may list ordered scoped-to-global sources, such as `{filesystem.workspace|github.workspace|workspace}`; the first supplied source wins and one global value may feed multiple selected upstreams.
 - Each workspace `allowed_roots` entry authorizes its canonical directory and descendants. Leading `~` and braced environment references expand while loading the profile, and environment-derived roots must be absolute.
 - Profile path precedence is explicit `--config`, then `IRIGATE_CONFIG`, then `~/.config/irigate/config.yaml`.
-- `runtime_report_path` is resolved against the profile file's parent directory at load time so a relative path stays portable across serving-process and CLI working directories; absolute paths pass through unchanged.
+- An omitted `runtime_report_path` resolves to `${XDG_STATE_HOME:-~/.local/state}/irigate/<profile>/runtime-report.json`. A configured relative override is resolved against the profile file's parent directory; absolute overrides pass through unchanged.
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields and duplicate YAML keys are errors.
 - `serial` and `parallel` concurrency are explicit per-upstream contracts.
@@ -64,8 +64,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Downstream `agent` labels are explicit attribution metadata, not authentication; omitted labels are `anonymous` and Irigate never infers identity.
 - `ps` reads the latest runtime report without resolving environments or starting upstreams and reports busy/idle/stopped state, elapsed idle time, configured idle timeout, and usage in table or JSON form.
 - `logs` prints the selected profile's newest MCP payload log without resolving environments or starting upstreams; `logs -f` flushes appended records live to stdout and continues following that start-scoped file.
-- `reload` requires a configured runtime report, does not resolve upstream environments, signals only a matching live Irigate process, and wakes the existing connection-preserving profile reload path.
-- `stop` requires a configured runtime report, does not resolve upstream environments, signals only a matching live Irigate process, waits for graceful cleanup, and fails if shutdown is not observed.
+- `reload` uses the effective configured or default runtime report, does not resolve upstream environments, signals only a matching live Irigate process, and wakes the existing connection-preserving profile reload path.
+- `stop` uses the effective configured or default runtime report, does not resolve upstream environments, signals only a matching live Irigate process, waits for graceful cleanup, and fails if shutdown is not observed.
 - Migration accepts one explicit source without discovery, otherwise requires interactive selection or `--all`; it migrates stdio entries only, preserves unrelated settings and remote entries, and validates all outputs before writing.
 - Migration never copies agent-config environment values. Every child variable becomes a broker-process `${ENV_NAME}` reference and must already exist in the migration environment.
 - Existing agent and Irigate files receive adjacent `.irigate.bak` backups; existing backups are never overwritten.

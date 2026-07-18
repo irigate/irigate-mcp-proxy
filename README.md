@@ -110,7 +110,6 @@ Irigate reads `~/.config/irigate/config.yaml` by default. Set `IRIGATE_CONFIG` t
 name: local
 host: 127.0.0.1
 port: 8765
-runtime_report_path: .irigate/runtime-report.json
 
 upstreams:
   context7:
@@ -137,7 +136,7 @@ upstreams:
 | `name` | Yes | — | Profile identifier using lowercase letters, digits, and hyphens. It labels `--check` output and runtime reports so operators can distinguish configurations; it does not affect routing. |
 | `host` | No | `127.0.0.1` | Listener address. Only `localhost` or an IP loopback address is accepted. |
 | `port` | No | `8765` | Streamable HTTP listener port, from 1 through 65535. |
-| `runtime_report_path` | No | Disabled | JSON report destination. The file is refreshed atomically and contains process statistics plus validated agent labels, never payloads or credentials. |
+| `runtime_report_path` | No | `${XDG_STATE_HOME:-~/.local/state}/irigate/<name>/runtime-report.json` | Exact JSON report destination override. Relative paths are anchored to the profile directory. The file contains process statistics plus validated agent labels, never payloads or credentials. |
 | `runtime_log_path` | No | `~/.local/log/irigate/<name>/` | Exact directory for protected start-scoped MCP payload logs. Relative paths are anchored to the profile directory. Changing it requires a broker restart. |
 | `upstreams` | Yes | — | Non-empty mapping of routing keys to stdio upstream definitions. |
 
@@ -413,7 +412,7 @@ Run qualification without opening the client endpoint when diagnosing startup:
 uv run --frozen irigate qualify --config profiles/mvp.yaml
 ```
 
-Audit records are written as metadata-only JSON lines to stderr. The default profile atomically refreshes `.irigate/runtime-report.json` with metadata-only process, reuse, timing, failure, and per-agent usage counters. Tool arguments and results remain excluded from both surfaces and are retained only in the protected rotating MCP call logs.
+Audit records are written as metadata-only JSON lines to stderr. Each profile atomically refreshes `${XDG_STATE_HOME:-~/.local/state}/irigate/<name>/runtime-report.json` by default with metadata-only process, reuse, timing, failure, and per-agent usage counters. Tool arguments and results remain excluded from both surfaces and are retained only in the protected rotating MCP call logs.
 
 ## Not part of the MVP
 

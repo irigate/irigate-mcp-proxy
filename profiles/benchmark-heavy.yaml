@@ -1,7 +1,6 @@
 name: benchmark-heavy
 host: 127.0.0.1
 port: 8766
-runtime_report_path: .irigate/benchmark-heavy-report.json
 
 upstreams:
   context7:
