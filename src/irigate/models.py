@@ -220,6 +220,7 @@ class BrokerConfig(BaseModel):
     host: str = "127.0.0.1"
     port: Annotated[int, Field(ge=1, le=65535)] = 8765
     runtime_report_path: Path | None = None
+    runtime_log_path: Path | None = None
     upstreams: dict[str, UpstreamConfig]
 
     @field_validator("name")

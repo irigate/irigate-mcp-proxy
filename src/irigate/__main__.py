@@ -17,6 +17,7 @@ from irigate import __version__
 from irigate.app import create_app
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import ConfigurationError, load_config
+from irigate.logs import McpCallLog, iter_log, latest_log, log_directory
 from irigate.migration import (
     MigrationError,
     discover_configurations,
@@ -106,6 +107,11 @@ def build_parser() -> argparse.ArgumentParser:
     ps = subcommands.add_parser("ps", help="show MCP upstream and agent usage")
     ps.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     ps.add_argument("--json", action="store_true", help="print the runtime report as JSON")
+    logs = subcommands.add_parser("logs", help="print the latest MCP call log")
+    logs.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
+    logs.add_argument(
+        "-f", "--follow", action="store_true", help="print appended log records live"
+    )
     reload_command = subcommands.add_parser(
         "reload",
         help="request an immediate profile reload",
@@ -196,9 +202,13 @@ async def discover_configured_tool_schema(
 
 
 async def call_configured_tool(
-    config: BrokerConfig, tool: str, arguments: dict[str, object]
+    config: BrokerConfig,
+    tool: str,
+    arguments: dict[str, object],
+    *,
+    call_log: McpCallLog | None = None,
 ) -> tuple[str, bool]:
-    broker = Broker(config)
+    broker = Broker(config, call_log=call_log)
     await broker.start()
     try:
         result = await broker.call_tool(tool, arguments, "cli", agent="cli")
@@ -339,7 +349,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         config = load_config(config_path)
-        if args.command not in {"upstreams", "ps", "reload", "stop"}:
+        if args.command not in {"upstreams", "ps", "logs", "reload", "stop"}:
             config.resolve_environment()
     except ConfigurationError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
@@ -409,14 +419,32 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("arguments error: JSON value must be an object", file=sys.stderr)
             return 2
         try:
-            output, is_error = asyncio.run(
-                call_configured_tool(config, args.tool, arguments)
+            call_log = McpCallLog.start(
+                config.name, directory=config.runtime_log_path
             )
+            output, is_error = asyncio.run(
+                call_configured_tool(config, args.tool, arguments, call_log=call_log)
+            )
+        except OSError as exc:
+            print(f"logs error: cannot start MCP log: {exc}", file=sys.stderr)
+            return 1
         except BrokerInitializationError as exc:
             print(f"tool call error: {exc}", file=sys.stderr)
             return 1
         print(output)
         return 1 if is_error else 0
+
+    if args.command == "logs":
+        try:
+            path = latest_log(config.name, directory=config.runtime_log_path)
+            for line in iter_log(path, follow=args.follow):
+                print(line, end="", flush=True)
+        except (FileNotFoundError, OSError) as exc:
+            print(f"logs error: {exc}", file=sys.stderr)
+            return 1
+        except KeyboardInterrupt:
+            return 130
+        return 0
 
     if args.command == "ps":
         try:
@@ -467,6 +495,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"environment={environment}")
         if config.runtime_report_path is not None:
             print(f"runtime_report={config.runtime_report_path}")
+        print(f"logs={log_directory(config.name, config.runtime_log_path)}")
         return 0
 
     process_control = None
@@ -480,12 +509,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             version=__version__,
         )
         process_control = (control_path(config.runtime_report_path), control)
+    try:
+        call_log = McpCallLog.start(config.name, directory=config.runtime_log_path)
+    except OSError as exc:
+        print(f"logs error: cannot start MCP log: {exc}", file=sys.stderr)
+        return 1
     uvicorn.run(
         create_app(
             config,
             require_qualified_sharing=args.require_qualified_sharing,
             config_path=config_path,
             process_control=process_control,
+            call_log=call_log,
         ),
         host=config.host,
         port=config.port,

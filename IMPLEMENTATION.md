@@ -7,7 +7,7 @@ status: active
 
 ## Product boundary
 
-Irigate is a loopback-only MCP broker for local developer workflows. It lets multiple local agent sessions share explicitly qualified stdio MCP servers while preserving isolated-by-default behavior and emitting metadata-only operational evidence.
+Irigate is a loopback-only MCP broker for local developer workflows. It lets multiple local agent sessions share explicitly qualified stdio MCP servers while preserving isolated-by-default behavior, metadata-only operational evidence, and explicit local payload logging for troubleshooting.
 
 It is not an enterprise gateway. Remote access, tenant identity, authorization, OAuth, TLS termination, Kubernetes deployment, model-API proxying, remote configuration APIs, payload inspection, and compliance claims are outside the product boundary.
 
@@ -20,9 +20,10 @@ It is not an enterprise gateway. Remote access, tenant identity, authorization, 
 5. `UpstreamWorker` owns one stdio MCP process/session, worker-local argument rendering, concurrency control, bounded calls, per-process idle expiry, and termination.
 6. `RuntimeMetrics` records metadata-only counters and atomically refreshes the configured JSON report.
 7. `AuditLog` writes exactly one metadata-only JSON-line record for every completed or rejected call.
-8. `migration` discovers common installed-agent configuration paths or accepts one explicit file, converts selected stdio definitions into isolated Irigate upstreams, and rewrites each agent to use the loopback Streamable HTTP endpoint.
-9. `restart` maintains credential-free process-control state beside the runtime report so a separate CLI process can validate and signal an immediate reload or graceful stop of the selected server.
-10. The optional bundled Agent Skill uses CLI-only progressive disclosure: static upstream metadata, one upstream's brief tool list, one exact schema, then one exact call. It does not add a downstream transport or generic dispatcher.
+8. `McpCallLog` creates one protected JSON-line file per server or direct-call start, records complete tool requests and responses, and retains the newest 10 files per profile.
+9. `migration` discovers common installed-agent configuration paths or accepts one explicit file, converts selected stdio definitions into isolated Irigate upstreams, and rewrites each agent to use the loopback Streamable HTTP endpoint.
+10. `restart` maintains credential-free process-control state beside the runtime report so a separate CLI process can validate and signal an immediate reload or graceful stop of the selected server.
+11. The optional bundled Agent Skill uses CLI-only progressive disclosure: static upstream metadata, one upstream's brief tool list, one exact schema, then one exact call. It does not add a downstream transport or generic dispatcher.
 
 ## Configuration contract
 
@@ -69,7 +70,7 @@ Runtime reload behavior:
 - Changed active upstreams must initialize successfully before the active routing table changes; added and changed dormant upstreams remain stopped.
 - A successful reload retires only changed active or removed upstream workers. Existing downstream Streamable HTTP sessions remain connected and selectors are evaluated against the refreshed profile.
 - Invalid files, missing environment references, and failed upstream initialization leave the last valid configuration active.
-- `host` and `port` changes are rejected at runtime because they require replacing the listening socket.
+- `name`, `host`, `port`, `runtime_report_path`, and `runtime_log_path` changes are rejected at runtime because they own start-scoped listener, control, report, or log state.
 
 ## Sharing and qualification
 
@@ -117,6 +118,8 @@ Audit records contain timestamp, upstream key, tool name, duration, and outcome.
 
 Neither surface may contain arguments, results, environment values, commands, authorization headers, credentials, or hashes of low-entropy secrets. Runtime reports may claim consolidation only when multiple logical clients reused a qualified worker.
 
+MCP call logs are a separate payload-bearing troubleshooting surface. Each server start and valid direct CLI call creates `~/.local/log/irigate/<profile>/<profile>-<UTC-start>-<pid>-<id>.jsonl` by default. The optional `runtime_log_path` profile field selects an exact replacement directory; relative values are anchored to the profile directory. Rotation retains the newest 10 files for that profile. The directory is mode `0700` and each file is mode `0600`. Records contain the agent label, complete `tools/call` arguments, complete MCP result or raised error, timestamp, and duration. They never contain broker environment values or upstream process commands unless a tool itself returns such data. Operators must treat the files as sensitive. Startup fails when the file cannot be created; a later append failure is reported to server stderr without replacing an already completed MCP result, which avoids unsafe retries of side-effecting calls.
+
 ## Module ownership
 
 - `src/irigate/models.py` — typed configuration and field validation.
@@ -131,7 +134,8 @@ Neither surface may contain arguments, results, environment values, commands, au
 - `src/irigate/runtime_report.py` — counters and atomic metadata-only snapshots.
 - `src/irigate/restart.py` — credential-free process-control documents, process identity validation, immediate reload signaling, and graceful stop signaling.
 - `src/irigate/audit.py` — one metadata-only call record per outcome.
-- `src/irigate/__main__.py` — `--check`, progressive upstream/tool/schema discovery, bundled-skill location, direct tool calls, `ps`, `reload`, `stop`, `qualify`, and serving CLI contracts.
+- `src/irigate/logs.py` — protected start-scoped MCP payload logs, file-count rotation, latest-log resolution, and follow iteration.
+- `src/irigate/__main__.py` — `--check`, progressive upstream/tool/schema discovery, bundled-skill location, direct tool calls, `ps`, `logs`, `reload`, `stop`, `qualify`, and serving CLI contracts.
 - `src/irigate/agent_skill/SKILL.md` — optional AgentSkills-compatible progressive-disclosure workflow and safety contract.
 - `profiles/` — static runtime and benchmark profiles.
 - `scripts/` — compatibility and resource-measurement harnesses.
@@ -166,10 +170,11 @@ Neither surface may contain arguments, results, environment values, commands, au
 
 ### Add telemetry
 
-1. Establish why metadata is operationally necessary.
-2. Keep payloads and environment values out of all records.
-3. Add sentinel tests covering arguments, results, and broker environment values.
-4. Preserve one audit record per call outcome and atomic runtime-report writes.
+1. Classify the surface as metadata-only evidence or explicit payload logging.
+2. Keep payloads and environment values out of audit records and runtime reports.
+3. For payload logs, require private permissions, bounded rotation, operator-facing sensitivity warnings, and tests proving the exact retained fields.
+4. Add sentinel tests covering arguments, results, and broker environment values.
+5. Preserve one audit record per call outcome and atomic runtime-report writes.
 
 ### Add an agent migration adapter
 
@@ -205,6 +210,8 @@ uv run --frozen python -m irigate tools --config profiles/mvp.yaml --upstream co
 uv run --frozen python -m irigate schema --config profiles/mvp.yaml context7__resolve-library-id
 uv run --frozen python -m irigate call --config profiles/mvp.yaml <upstream>__<tool> --arguments '{}'
 uv run --frozen python -m irigate ps --config profiles/mvp.yaml
+uv run --frozen python -m irigate logs --config profiles/mvp.yaml
+uv run --frozen python -m irigate logs -f --config profiles/mvp.yaml
 uv run --frozen python -m irigate reload --config profiles/mvp.yaml
 uv run --frozen python -m irigate stop --config profiles/mvp.yaml
 uv run --frozen python -m irigate qualify --config profiles/mvp.yaml
@@ -212,7 +219,7 @@ uv run --frozen python scripts/compatibility.py --config profiles/mvp.yaml
 uv run --frozen python scripts/benchmark.py --config profiles/benchmark-heavy.yaml --clients 1,5,20 --repetitions 3
 ```
 
-The full test suite must prove default-all behavior, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, and payload-free audit output. Focused configuration and workspace tests additionally prove input-schema rejection, configured-root expansion, descendant authorization, canonical traversal handling, and symlink-escape rejection.
+The full test suite must prove default-all behavior, selected-only activation, exact filtering and routing, qualification fallback, session isolation, connection-preserving selection-aware reload, failed-reload fallback, concurrency modes, bounded shutdown, orphan cleanup, report reconciliation, payload-free audit output, complete MCP call logs, private permissions, rotation, latest-log printing, and live follow output. Focused configuration and workspace tests additionally prove input-schema rejection, configured-root expansion, descendant authorization, canonical traversal handling, and symlink-escape rejection.
 
 Migration tests must prove common-path discovery, explicit-file-only scope, JSON/YAML/TOML preservation, correct per-agent HTTP fields, environment-reference safety, collision rejection before writes, and adjacent backups.
 
@@ -227,6 +234,8 @@ Root `irigate --help` lists every subcommand and identifies the running package 
 `irigate call --config <profile> <upstream>__<tool> [--arguments <JSON-object>]` invokes one namespaced tool without opening the HTTP listener. It writes the complete MCP result as JSON, maps successful/tool-error results to exit codes `0`/`1`, rejects malformed or non-object arguments with exit code `2`, and closes the selected worker before exiting. Credentials remain broker-process environment values and must not be supplied in tool arguments.
 
 `irigate ps --config <profile> [--json]` reads the configured runtime report without resolving upstream environment references or starting processes. The table emits one upstream/agent row with effective mode, live instances, activity state, elapsed idle time, configured idle timeout, calls, and failures; JSON mode preserves the complete snapshot. Elapsed idle time is computed at read time from the UTC idle-start timestamp. Process liveness reflects the latest atomic write, while usage counters cover only the broker run represented by that report.
+
+`irigate logs --config <profile> [-f]` prints the newest start-scoped log from the profile's configured or default runtime log directory without resolving upstream environment references or starting processes. `-f` keeps stdout open and flushes each appended JSON-line record. It follows the selected file; a later broker start creates a new file and requires a new `logs -f` invocation.
 
 `irigate reload --config <profile>` requires `runtime_report_path`, reads no upstream environment values, and sends `SIGHUP` only to the exact live Irigate process whose control document matches the selected profile and canonical configuration path. Exit `0` means the request was delivered; the serving process then runs the same atomic reload path used by file watching. It does not claim that a changed profile was accepted: reload validation and activation failures are logged by the server while the last valid configuration remains active.
 

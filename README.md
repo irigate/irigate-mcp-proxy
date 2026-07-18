@@ -6,7 +6,7 @@
   <img src="assets/logo.svg" alt="Irigate — an Iris flower opening into a gateway" width="760">
 </p>
 
-Irigate is a loopback-only MCP broker. It lets local agent sessions share explicitly qualified stdio MCP servers, reducing duplicate processes while providing metadata-only runtime reports and one audit record for every completed or rejected tool call.
+Irigate is a loopback-only MCP broker. It lets local agent sessions share explicitly qualified stdio MCP servers, reducing duplicate processes while providing metadata-only runtime reports, one audit record for every completed or rejected tool call, and local start-scoped MCP request/response logs.
 
 ## Feature overview
 
@@ -16,7 +16,7 @@ Irigate is a loopback-only MCP broker. It lets local agent sessions share explic
 | **◈** | **Selective process reuse**<br>Share qualified stdio servers across compatible sessions and restart only upstreams whose configuration changed. | **⛨** | **Fail-closed sharing**<br>Keep upstreams isolated by default; sharing requires explicit opt-in and an upstream-specific qualifier. |
 | **⎇** | **Exact namespaced routing**<br>Expose deterministic `<upstream>__<tool>` names and reject ambiguous or unknown routes. | **◎** | **Session isolation**<br>Scope non-shareable workers to downstream sessions so context-bound state never leaks across agents. |
 | **⚡** | **Explicit concurrency**<br>Choose serial or parallel execution per upstream, with independent queues and bounded call timeouts. | **◷** | **Bounded lifecycle**<br>Shut down each idle upstream on its configured timeout, restart it on demand, and terminate children without leaving orphans. |
-| **◇** | **Metadata-only observability**<br>Record outcomes, durations, reuse, failures, and process counts without payloads, commands, or credentials. | **⚖** | **Measured compatibility**<br>Run qualification, multi-client compatibility checks, and repeatable 1/5/20-client resource benchmarks. |
+| **◇** | **Layered observability**<br>Keep reports and audit output metadata-only; inspect full local tool requests and responses only through protected rotating logs. | **⚖** | **Measured compatibility**<br>Run qualification, multi-client compatibility checks, and repeatable 1/5/20-client resource benchmarks. |
 | **⌘** | **Direct CLI tool calls**<br>Invoke one namespaced MCP tool from automation without starting the HTTP listener. | **▦** | **Process and usage inspection**<br>Use `irigate ps` to see live instances, busy/idle state, idle duration and timeout, and per-agent usage. |
 
 An optional bundled Agent Skill provides progressive disclosure for large tool catalogs: inspect configured upstream metadata, list one upstream's brief tool metadata, load one exact schema, then call that tool without registering every schema in the agent context.
@@ -138,6 +138,7 @@ upstreams:
 | `host` | No | `127.0.0.1` | Listener address. Only `localhost` or an IP loopback address is accepted. |
 | `port` | No | `8765` | Streamable HTTP listener port, from 1 through 65535. |
 | `runtime_report_path` | No | Disabled | JSON report destination. The file is refreshed atomically and contains process statistics plus validated agent labels, never payloads or credentials. |
+| `runtime_log_path` | No | `~/.local/log/irigate/<name>/` | Exact directory for protected start-scoped MCP payload logs. Relative paths are anchored to the profile directory. Changing it requires a broker restart. |
 | `upstreams` | Yes | — | Non-empty mapping of routing keys to stdio upstream definitions. |
 
 ### Required broker-field example
@@ -220,7 +221,7 @@ Providing a file bypasses discovery and migrates only that file. Non-interactive
 
 Agent-local environment values are never copied into the Irigate profile. Every migrated child environment variable becomes an explicit `${ENV_NAME}` broker reference, and that variable must already be exported in the environment running the migration. The same environment must be available when Irigate runs. Conflicting normalized upstream names or unsupported configuration shapes fail before any file changes.
 
-While serving, Irigate watches the selected profile. Changed active upstreams must initialize successfully before routing switches. Added and changed dormant upstreams remain stopped until selected. Invalid updates leave the last valid active configuration available. Changes to `host` or `port` require restarting the broker.
+While serving, Irigate watches the selected profile. Changed active upstreams must initialize successfully before routing switches. Added and changed dormant upstreams remain stopped until selected. Invalid updates leave the last valid active configuration available. Changes to `name`, `host`, `port`, `runtime_report_path`, or `runtime_log_path` require restarting the broker.
 
 ## Run
 
@@ -357,7 +358,7 @@ uv run --frozen irigate call --config profiles/mvp.yaml \
   --arguments '{"repo_root":"/path/to/project","full_rebuild":false}'
 ```
 
-`--arguments` accepts one JSON object and defaults to `{}`. The command prints the complete MCP `CallToolResult` as JSON, exits `0` for a successful tool result, `1` for an MCP or upstream error, and `2` for invalid configuration or arguments. The upstream starts only for this call and is closed before the command exits. Pass credentials through the profile's environment references, never through tool arguments.
+`--arguments` accepts one JSON object and defaults to `{}`. The command prints the complete MCP `CallToolResult` as JSON, exits `0` for a successful tool result, `1` for an MCP or upstream error, and `2` for invalid configuration or arguments. The upstream starts only for this call and is closed before the command exits. A valid direct call creates its own MCP log file. Pass credentials through the profile's environment references, never through tool arguments.
 
 Inspect the latest runtime snapshot in a `ps`/`netstat`-style table:
 
@@ -367,6 +368,15 @@ uv run --frozen irigate ps --config profiles/mvp.yaml --json
 ```
 
 Each table row identifies an upstream/agent pair and shows effective mode, live process count, activity state (`busy`, `idle`, or `stopped`), elapsed idle time, configured idle timeout, calls, and failures. `IDLE_FOR` is `-` while busy or stopped; while idle it is calculated from the report's UTC `idle_since` timestamp, so it continues advancing between report writes. `--json` returns the complete schema-version-3 report, including `activity_state`, `active_calls`, `idle_since`, and `idle_timeout_seconds`, for automation. This command reads `runtime_report_path` without starting upstreams or resolving their environment references; a report left by a stopped broker retains cumulative usage from that run.
+
+Print the newest MCP call log for the selected profile, or follow appended JSON-line records live on stdout:
+
+```bash
+uv run --frozen irigate logs --config profiles/mvp.yaml
+uv run --frozen irigate logs -f --config profiles/mvp.yaml
+```
+
+Every server start and valid direct `call` starts a new file under `~/.local/log/irigate/<profile>/` by default. Set the optional profile field `runtime_log_path` to use another exact directory; relative values are anchored to the profile directory. Irigate retains the newest 10 files per profile. The directory is mode `0700` and files are mode `0600`. Each record contains the agent label, complete `tools/call` arguments, complete MCP result or raised error, and duration. These payload logs can contain sensitive tool input or output; unlike audit records and runtime reports, they are not metadata-only. `logs` reads no upstream environment references and starts no processes. `-f` follows the selected file; run it again after a new broker start to follow the new file.
 
 Gracefully stop the server selected by the same profile:
 
@@ -403,7 +413,7 @@ Run qualification without opening the client endpoint when diagnosing startup:
 uv run --frozen irigate qualify --config profiles/mvp.yaml
 ```
 
-Audit records are written as JSON lines to stderr. The default profile atomically refreshes `.irigate/runtime-report.json` with metadata-only process, reuse, timing, failure, and per-agent usage counters. Agent labels are the only client-provided metadata retained in that report; tool arguments and results remain excluded.
+Audit records are written as metadata-only JSON lines to stderr. The default profile atomically refreshes `.irigate/runtime-report.json` with metadata-only process, reuse, timing, failure, and per-agent usage counters. Tool arguments and results remain excluded from both surfaces and are retained only in the protected rotating MCP call logs.
 
 ## Not part of the MVP
 

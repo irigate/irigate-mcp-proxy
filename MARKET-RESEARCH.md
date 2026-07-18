@@ -152,7 +152,7 @@ Rejected for the MVP because the design lacks:
 
 Rejected because generic regex scanning cannot reliably distinguish legitimate tool credentials from exfiltration, while response rewriting can corrupt valid source code or structured output.
 
-The safer MVP rule is to avoid collecting arguments and results and to prohibit credentials in URLs, logs, and committed profiles.
+The safer MVP rule keeps operational reports and audit records payload-free, prohibits credentials in URLs, request arguments, and committed profiles, and confines complete request/response troubleshooting data to private, bounded local logs that operators must treat as sensitive.
 
 ### “Unified OpenAI and Anthropic governance gateway”
 

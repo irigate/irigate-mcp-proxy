@@ -113,6 +113,53 @@ def test_missing_runtime_report_path_stays_unset(tmp_path: Path) -> None:
     assert config.runtime_report_path is None
 
 
+def test_relative_runtime_log_path_is_anchored_to_profile_directory(
+    tmp_path: Path,
+) -> None:
+    profile = VALID_PROFILE.replace(
+        "runtime_report_path: .irigate/report.json",
+        "runtime_report_path: .irigate/report.json\nruntime_log_path: runtime/logs",
+    )
+
+    config = load_config(write_profile(tmp_path, profile))
+
+    assert config.runtime_log_path == (tmp_path / "runtime/logs").resolve()
+
+
+def test_absolute_runtime_log_path_is_preserved(tmp_path: Path) -> None:
+    profile = VALID_PROFILE.replace(
+        "runtime_report_path: .irigate/report.json",
+        "runtime_report_path: .irigate/report.json\n"
+        "runtime_log_path: /var/log/irigate/test-profile",
+    )
+
+    config = load_config(write_profile(tmp_path, profile))
+
+    assert config.runtime_log_path == Path("/var/log/irigate/test-profile")
+
+
+def test_runtime_log_path_expands_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    profile = VALID_PROFILE.replace(
+        "runtime_report_path: .irigate/report.json",
+        "runtime_report_path: .irigate/report.json\n"
+        "runtime_log_path: ~/.local/log/irigate/test-profile",
+    )
+
+    config = load_config(write_profile(tmp_path, profile))
+
+    assert config.runtime_log_path == home / ".local/log/irigate/test-profile"
+
+
+def test_missing_runtime_log_path_stays_unset(tmp_path: Path) -> None:
+    config = load_config(write_profile(tmp_path, VALID_PROFILE))
+
+    assert config.runtime_log_path is None
+
+
 def test_rejects_duplicate_yaml_keys(tmp_path: Path) -> None:
     profile = VALID_PROFILE.replace("port: 8765", "port: 8765\nport: 9000")
 

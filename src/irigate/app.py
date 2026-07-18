@@ -23,6 +23,7 @@ from starlette.types import Message, Receive, Scope, Send
 from irigate import __version__
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import ConfigurationError, load_config
+from irigate.logs import McpCallLog
 from irigate.models import BrokerConfig, UpstreamConfig
 from irigate.restart import RestartControl, remove_control, write_control
 from irigate.selection import InputBindings, Selection, SelectionError, parse_selection
@@ -105,11 +106,14 @@ def create_app(
     config_path: str | Path | None = None,
     reload_interval_seconds: float = 0.5,
     process_control: tuple[Path, RestartControl] | None = None,
+    call_log: McpCallLog | None = None,
 ) -> Starlette:
     """Create the loopback Streamable HTTP app without starting processes."""
 
     broker = Broker(
-        config, require_qualified_sharing=require_qualified_sharing
+        config,
+        require_qualified_sharing=require_qualified_sharing,
+        call_log=call_log,
     )
     watched_path = Path(config_path) if config_path is not None else None
     if watched_path is not None:

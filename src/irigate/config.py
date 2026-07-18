@@ -88,4 +88,9 @@ def load_config(path: str | Path) -> BrokerConfig:
         config = config.model_copy(
             update={"runtime_report_path": (profile_path.parent / config.runtime_report_path).resolve()}
         )
+    if config.runtime_log_path is not None:
+        runtime_log_path = config.runtime_log_path.expanduser()
+        if not runtime_log_path.is_absolute():
+            runtime_log_path = profile_path.parent / runtime_log_path
+        config = config.model_copy(update={"runtime_log_path": runtime_log_path.resolve()})
     return config

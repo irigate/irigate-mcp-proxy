@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Executable contracts for Irigate configuration, background reload, transport, routing, isolation, shutdown, qualification, reporting, and client compatibility.
+Executable contracts for Irigate configuration, background reload, transport, routing, isolation, shutdown, qualification, reporting, payload logging, and client compatibility.
 
 ## Ownership
 
@@ -12,6 +12,7 @@ Executable contracts for Irigate configuration, background reload, transport, ro
 - `test_workspace.py` owns canonical workspace resolution, allowed-root matching, descendant authorization, traversal handling, and symlink-escape rejection.
 - `test_migration.py` owns installed-agent discovery, explicit-file scope, JSON/YAML/TOML conversion, environment safety, conflict handling, backups, and migration CLI behavior.
 - `test_restart.py` owns process-control validation, process identity, immediate reload signaling, graceful stop signaling and cleanup, command visibility, version help, and CLI behavior.
+- `test_logs.py` owns default and configured runtime log paths, start-scoped MCP payload records, private path permissions, file-count rotation, latest-log CLI output, and live follow behavior.
 - `fixtures/` owns credential-free echo, state, workspace-argument, and Context7-shaped MCP servers used only by tests.
 - `helpers.py` owns loopback test-server startup and typed test-profile construction.
 

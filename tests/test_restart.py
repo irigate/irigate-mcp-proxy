@@ -152,10 +152,11 @@ def test_cli_help_lists_process_control_commands_and_version(capsys) -> None:
     root_help = capsys.readouterr().out
     assert f"Irigate {__version__}" in root_help
     assert "~/.config/irigate/config.yaml" in root_help
+    assert "logs" in root_help
     assert "reload" in root_help
     assert "stop" in root_help
 
-    for command in ("tools", "reload", "stop"):
+    for command in ("tools", "logs", "reload", "stop"):
         with pytest.raises(SystemExit) as command_exit:
             parser.parse_args([command, "--help"])
         assert command_exit.value.code == 0

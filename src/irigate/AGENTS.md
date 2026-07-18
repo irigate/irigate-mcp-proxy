@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Production Irigate package: validated configuration, loopback MCP transport, deterministic namespaced routing, upstream lifecycle, qualification, and metadata-only reporting.
+Production Irigate package: validated configuration, loopback MCP transport, deterministic namespaced routing, upstream lifecycle, qualification, metadata-only reporting, and protected MCP payload logs.
 
 ## Ownership
 
@@ -10,7 +10,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `workspace.py` owns strict canonical directory resolution and segment-based `allowed_roots` authorization.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
 - `migration.py` owns common agent-config discovery, JSON/YAML/TOML conversion, backup creation, and atomic replacement.
-- `__main__.py` owns serving, validation, qualification, progressive runtime discovery, bundled-skill location, direct tool-call, process-report, and process-control console contracts.
+- `__main__.py` owns serving, validation, qualification, progressive runtime discovery, bundled-skill location, direct tool-call, process-report, payload-log inspection, and process-control console contracts.
 - `agent_skill/SKILL.md` owns the optional AgentSkills-compatible progressive-disclosure workflow.
 - `app.py` owns the loopback Streamable HTTP application, agent-label propagation, Origin policy, background profile watcher, and serving-process control lifecycle.
 - `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, input-fingerprinted worker selection, and atomic upstream reload.
@@ -20,6 +20,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `runtime_report.py` owns metadata-only counters and atomic JSON snapshots.
 - `restart.py` owns credential-free process-control state, strict process identity checks, immediate reload signaling, and graceful stop signaling.
 - `audit.py` owns one metadata-only JSON-line record per completed or rejected call.
+- `logs.py` owns protected start-scoped MCP call/response logs, file-count rotation, latest-log selection, and follow iteration.
 
 ## Local Contracts
 
@@ -45,6 +46,10 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - A degraded shared upstream remains degraded until process restart.
 - Audit records contain timestamp, upstream key, tool name, outcome, and duration only.
 - Arguments, results, environment values, commands, and credentials never enter audit records.
+- Every serving start and valid direct CLI call creates a mode-`0600` MCP payload log under the mode-`0700` `~/.local/log/irigate/<profile>/` default or exact configured `runtime_log_path`; only the newest 10 files per profile are retained.
+- Relative `runtime_log_path` values are anchored to the profile directory. `name`, listener, runtime-report, and runtime-log path changes require restart rather than hot reload.
+- MCP payload logs contain the complete `tools/call` arguments and result or raised error. They exclude broker environment and process configuration unless a tool payload itself contains that data and must be treated as sensitive.
+- Log-file creation is a startup requirement. Append failures are reported without replacing an already completed tool result, preventing retries caused only by observability failure.
 - Reload prepares changed active upstreams before routing switches, keeps added and changed dormant upstreams unstarted, preserves the last valid active configuration on failure, and never replaces downstream HTTP sessions.
 - Runtime `host` and `port` changes are rejected; they require replacing the listener.
 - A request without a selector uses all configured upstreams. A selected request uses one `tools` or `upstreams` mode; upstream exclusions override inclusions and unknown names fail closed.
@@ -58,6 +63,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `skill-path` prints the bundled Agent Skill directory without loading a profile. The skill must not imply cross-command state retention or accept credentials in arguments.
 - Downstream `agent` labels are explicit attribution metadata, not authentication; omitted labels are `anonymous` and Irigate never infers identity.
 - `ps` reads the latest runtime report without resolving environments or starting upstreams and reports busy/idle/stopped state, elapsed idle time, configured idle timeout, and usage in table or JSON form.
+- `logs` prints the selected profile's newest MCP payload log without resolving environments or starting upstreams; `logs -f` flushes appended records live to stdout and continues following that start-scoped file.
 - `reload` requires a configured runtime report, does not resolve upstream environments, signals only a matching live Irigate process, and wakes the existing connection-preserving profile reload path.
 - `stop` requires a configured runtime report, does not resolve upstream environments, signals only a matching live Irigate process, waits for graceful cleanup, and fails if shutdown is not observed.
 - Migration accepts one explicit source without discovery, otherwise requires interactive selection or `--all`; it migrates stdio entries only, preserves unrelated settings and remote entries, and validates all outputs before writing.

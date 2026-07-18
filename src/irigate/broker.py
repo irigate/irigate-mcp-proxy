@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 import time
 from collections.abc import Sequence
 from typing import Any, Hashable
@@ -10,11 +11,14 @@ from mcp import types
 
 from irigate.audit import AuditLog
 from irigate.config import ConfigurationError
+from irigate.logs import McpCallLog
 from irigate.models import BrokerConfig
 from irigate.qualification import QualificationResult, qualify_upstream
 from irigate.runtime_report import RuntimeMetrics
 from irigate.selection import InputBindings, Selection, ToolSelection
 from irigate.upstream import UpstreamError, UpstreamTimeout, UpstreamWorker
+
+logger = logging.getLogger(__name__)
 
 
 class BrokerInitializationError(RuntimeError):
@@ -29,11 +33,13 @@ class Broker:
         config: BrokerConfig,
         *,
         require_qualified_sharing: bool = False,
+        call_log: McpCallLog | None = None,
     ) -> None:
         self.config = config
         self.require_qualified_sharing = require_qualified_sharing
         self._environment = config.resolve_environment()
         self._audit = AuditLog()
+        self._call_log = call_log
         self._runtime = RuntimeMetrics(config)
         self._qualifications: dict[str, QualificationResult] = {}
         self._shared: dict[str, UpstreamWorker] = {}
@@ -282,8 +288,23 @@ class Broker:
     async def reload(self, config: BrokerConfig) -> bool:
         """Atomically adopt changed upstreams without replacing downstream sessions."""
 
-        if config.host != self.config.host or config.port != self.config.port:
-            raise ConfigurationError("host and port cannot change while the broker is running")
+        startup_fields = (
+            "name",
+            "host",
+            "port",
+            "runtime_report_path",
+            "runtime_log_path",
+        )
+        changed_startup_fields = [
+            field
+            for field in startup_fields
+            if getattr(config, field) != getattr(self.config, field)
+        ]
+        if changed_startup_fields:
+            raise ConfigurationError(
+                ", ".join(changed_startup_fields)
+                + " cannot change while the broker is running"
+            )
 
         async with self._reload_lock:
             old_config = self.config
@@ -393,6 +414,66 @@ class Broker:
             self._runtime.effective_mode(key, "degraded")
 
     async def call_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        session_key: Hashable,
+        selection: Selection | None = None,
+        *,
+        agent: str = "anonymous",
+    ) -> types.CallToolResult:
+        started = time.monotonic()
+        try:
+            result = await self._call_tool(
+                name,
+                arguments,
+                session_key,
+                selection,
+                agent=agent,
+            )
+        except BaseException as exc:
+            self._emit_call_log(
+                name,
+                arguments,
+                agent,
+                time.monotonic() - started,
+                error=exc,
+            )
+            raise
+        self._emit_call_log(
+            name,
+            arguments,
+            agent,
+            time.monotonic() - started,
+            result=result,
+        )
+        return result
+
+    def _emit_call_log(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        agent: str,
+        duration_seconds: float,
+        *,
+        result: types.CallToolResult | None = None,
+        error: BaseException | None = None,
+    ) -> None:
+        if self._call_log is None:
+            return
+        try:
+            self._call_log.emit(
+                tool=name,
+                arguments=arguments,
+                agent=agent,
+                duration_seconds=duration_seconds,
+                result=result,
+                error=error,
+            )
+        except Exception:
+            logger.exception("MCP payload log write failed")
+
+    async def _call_tool(
         self,
         name: str,
         arguments: dict[str, Any],

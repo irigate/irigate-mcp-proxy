@@ -13,7 +13,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 from irigate.app import create_app
 from irigate.broker import Broker, BrokerInitializationError
-from irigate.config import load_config
+from irigate.config import ConfigurationError, load_config
 from irigate.selection import parse_selection
 from tests.helpers import ECHO_SERVER, config_for, upstream
 
@@ -120,6 +120,31 @@ async def test_failed_reload_keeps_current_upstream_available() -> None:
         )
         assert result.isError is False
         assert result.structuredContent == {"value": "still-running"}
+    finally:
+        await broker.close()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("name", "other-profile"),
+        ("host", "localhost"),
+        ("port", 8766),
+        ("runtime_report_path", Path("/tmp/other-report.json")),
+        ("runtime_log_path", Path("/tmp/other-logs")),
+    ],
+)
+async def test_reload_rejects_startup_bound_profile_fields(
+    field: str, value: object
+) -> None:
+    config = config_for(8765, {"fixture": upstream()})
+    broker = Broker(config)
+    await broker.start()
+    try:
+        replacement = config.model_copy(update={field: value})
+
+        with pytest.raises(ConfigurationError, match=field):
+            await broker.reload(replacement)
     finally:
         await broker.close()
 
