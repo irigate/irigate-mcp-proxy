@@ -41,6 +41,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Qualification probes use fixed non-destructive surfaces and never forward client payloads.
 - Runtime reports contain counts, durations, modes, activity state, idle timing, upstream keys, and validated agent labels only.
 - Process-control documents are adjacent to configured runtime reports, contain only profile/process identity metadata, and are treated as untrusted claims until profile, configuration path, and live process identity all match.
+- Process identity accepts `python -m irigate`, direct console-script argv, and Python shebang execution where the absolute `irigate` console-script path is argv 1; unrelated Python scripts remain rejected.
 - A degraded shared upstream remains degraded until process restart.
 - Audit records contain timestamp, upstream key, tool name, outcome, and duration only.
 - Arguments, results, environment values, commands, and credentials never enter audit records.

@@ -120,11 +120,16 @@ def test_process_identity_accepts_irigate_python_and_console_forms(tmp_path: Pat
     (proc / "2" / "cmdline").write_bytes(b"/venv/bin/irigate\0--config\0x\0")
     (proc / "3").mkdir()
     (proc / "3" / "cmdline").write_bytes(b"/usr/bin/python3\0worker.py\0")
+    (proc / "4").mkdir()
+    (proc / "4" / "cmdline").write_bytes(
+        b"/venv/bin/python3\0/venv/bin/irigate\0--config\0x\0"
+    )
 
     assert process_is_irigate(1, proc_root=proc)
     assert process_is_irigate(2, proc_root=proc)
     assert not process_is_irigate(3, proc_root=proc)
-    assert not process_is_irigate(4, proc_root=proc)
+    assert process_is_irigate(4, proc_root=proc)
+    assert not process_is_irigate(5, proc_root=proc)
 
 
 @pytest.mark.parametrize("command", ["reload", "stop"])

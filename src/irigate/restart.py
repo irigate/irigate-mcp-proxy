@@ -129,6 +129,10 @@ def process_is_irigate(pid: int, *, proc_root: Path = Path("/proc")) -> bool:
     executable = Path(arguments[0]).name
     if executable == "irigate" or executable.startswith("irigate-"):
         return True
+    if executable.startswith(("python", "pypy")) and len(arguments) > 1:
+        script = Path(arguments[1]).name
+        if script == "irigate" or script.startswith("irigate-"):
+            return True
     return any(
         arguments[index : index + 2] == ["-m", "irigate"]
         for index in range(1, len(arguments) - 1)
