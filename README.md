@@ -17,7 +17,7 @@ Irigate is a loopback-only MCP broker. It lets local agent sessions share explic
 | **⎇** | **Exact namespaced routing**<br>Expose deterministic `<upstream>__<tool>` names and reject ambiguous or unknown routes. | **◎** | **Session isolation**<br>Scope non-shareable workers to downstream sessions so context-bound state never leaks across agents. |
 | **⚡** | **Explicit concurrency**<br>Choose serial or parallel execution per upstream, with independent queues and bounded call timeouts. | **◷** | **Bounded lifecycle**<br>Shut down each idle upstream on its configured timeout, restart it on demand, and terminate children without leaving orphans. |
 | **◇** | **Layered observability**<br>Keep reports and audit output metadata-only; inspect full local tool requests and responses only through protected rotating logs. | **⚖** | **Measured compatibility**<br>Run qualification, multi-client compatibility checks, and repeatable 1/5/20-client resource benchmarks. |
-| **⌘** | **Direct CLI tool calls**<br>Invoke one namespaced MCP tool from automation without starting the HTTP listener. | **▦** | **Process and usage inspection**<br>Use `irigate ps` to see live instances, busy/idle state, idle duration and timeout, and per-agent usage. |
+| **⌘** | **Direct CLI tool calls**<br>Invoke one namespaced MCP tool from automation without starting the HTTP listener. | **▦** | **Process and usage inspection**<br>Use `irigate status` for the broker process and `irigate ps` for upstream state and per-agent usage. |
 
 An optional bundled Agent Skill provides progressive disclosure for large tool catalogs: inspect configured upstream metadata, list one upstream's brief tool metadata, load one exact schema, then call that tool without registering every schema in the agent context.
 
@@ -259,7 +259,7 @@ uv run --frozen irigate --version
 uv run --frozen irigate --help
 ```
 
-The root help lists `reload` and `stop`; each command's `--help` output also identifies the running Irigate version so a stale installed executable is visible immediately.
+The root help lists `status`, `reload`, and `stop`; the reload and stop help output also identifies the running Irigate version so a stale installed executable is visible immediately.
 
 The broker listens at `http://127.0.0.1:8765/mcp` without starting upstreams. A client may use the bare URL to expose all configured upstreams, or add a selector to narrow the set. Qualification, schema discovery, and process startup happen on first use. Each upstream's `idle_timeout_seconds` shuts down that process independently after inactivity; the next routed call starts a fresh process without changing the downstream session.
 
@@ -388,6 +388,15 @@ uv run --frozen irigate ps --config profiles/mvp.yaml --json
 
 Each table row identifies an upstream/agent pair and shows effective mode, live process count, activity state (`busy`, `idle`, or `stopped`), elapsed idle time, configured idle timeout, calls, and failures. `IDLE_FOR` is `-` while busy or stopped; while idle it is calculated from the report's UTC `idle_since` timestamp, so it continues advancing between report writes. `--json` returns the complete schema-version-3 report, including `activity_state`, `active_calls`, `idle_since`, and `idle_timeout_seconds`, for automation. This command reads `runtime_report_path` without starting upstreams or resolving their environment references; a report left by a stopped broker retains cumulative usage from that run.
 
+Inspect the serving process separately from its potentially stale runtime report:
+
+```bash
+uv run --frozen irigate status --config profiles/mvp.yaml
+uv run --frozen irigate status --config profiles/mvp.yaml --json
+```
+
+For a verified running process, `status` reports the PID, effective host, port and MCP endpoint, canonical configuration path, runtime-report path, current start-scoped MCP log file, instance ID, package version, and UTC start time. If no live control document exists, it reports `state=stopped` and whether a stale runtime report or control document remains. It does not resolve upstream environment references or start upstreams.
+
 Print the newest MCP call log for the selected profile, or follow appended JSON-line records live on stdout:
 
 ```bash
@@ -409,7 +418,7 @@ Request an immediate connection-preserving profile reload:
 uv run --frozen irigate reload --config profiles/mvp.yaml
 ```
 
-Serving writes a credential-free `<runtime_report_path>.control` document containing the profile, canonical configuration path, PID, instance ID, and package version. Both commands treat that document as an untrusted claim: they check the selected profile and configuration path and verify that the PID is a live Irigate process. `reload` sends `SIGHUP` to wake the same atomic reload path used by profile watching; exit `0` confirms delivery, while validation or activation failures remain in the server log and leave the last valid configuration active. `stop` sends `SIGTERM` and waits for normal application and child-process cleanup. Neither command resolves upstream environment references. A missing `runtime_report_path`, stale or mismatched control document, non-Irigate PID, or signal failure fails without signaling another process; `stop` also fails when cleanup is not observed.
+Serving writes a credential-free `<runtime_report_path>.control` document containing the effective process, listener, configuration, report, and current log-file metadata used by `status`, `reload`, and `stop`. These commands treat that document as an untrusted claim: they check the selected profile and configuration path and verify that the PID is a live Irigate process. `reload` sends `SIGHUP` to wake the same atomic reload path used by profile watching; exit `0` confirms delivery, while validation or activation failures remain in the server log and leave the last valid configuration active. `stop` sends `SIGTERM` and waits for normal application and child-process cleanup. None resolves upstream environment references. A missing `runtime_report_path`, stale or mismatched control document, non-Irigate PID, or signal failure fails without signaling another process; `stop` also fails when cleanup is not observed.
 
 An agent can combine Irigate with a directly managed MCP server:
 

@@ -22,7 +22,7 @@ It is not an enterprise gateway. Remote access, tenant identity, authorization, 
 7. `AuditLog` writes exactly one metadata-only JSON-line record for every completed or rejected call.
 8. `McpCallLog` creates one protected JSON-line file per server or direct-call start, records complete tool requests and responses, and retains the newest 10 files per profile.
 9. `migration` discovers common installed-agent configuration paths or accepts one explicit file, converts selected stdio definitions into isolated Irigate upstreams, and rewrites each agent to use the loopback Streamable HTTP endpoint.
-10. `restart` maintains credential-free process-control state beside the runtime report so a separate CLI process can validate and signal an immediate reload or graceful stop of the selected server.
+10. `restart` maintains credential-free effective server state beside the runtime report so a separate CLI process can inspect the listener or validate and signal an immediate reload or graceful stop of the selected server.
 11. The optional bundled Agent Skill uses CLI-only progressive disclosure: static upstream metadata, one upstream's brief tool list, one exact schema, then one exact call. It does not add a downstream transport or generic dispatcher.
 
 ## Configuration contract
@@ -92,7 +92,8 @@ Context7 is the qualified shared upstream in `profiles/mvp.yaml`. Its qualifier 
 - Calls have bounded timeouts and report queue and call durations separately.
 - Every worker shuts down independently after `idle_timeout_seconds` with no queued or active calls. The next call creates a fresh worker in the same effective sharing mode.
 - Shutdown stops new work, bounds active-call draining, closes MCP sessions, terminates child processes, and kills only children that outlive the termination interval.
-- A serving process atomically publishes `<effective-runtime-report-path>.control` after application startup and removes only its own instance record after cleanup. An omitted override uses the profile-scoped XDG state path; a relative override is anchored to the profile directory. The serving process and any later `irigate reload`/`irigate stop` invocation therefore resolve the same absolute path regardless of their current working directories.
+- A serving process atomically publishes `<effective-runtime-report-path>.control` after application startup and removes only its own instance record after cleanup. The credential-free document records its PID, instance ID, version, UTC start time, effective host and port, canonical configuration and report paths, and current start-scoped MCP log file. An omitted override uses the profile-scoped XDG state path; a relative override is anchored to the profile directory.
+- `irigate status` loads the profile without resolving upstream environments, validates profile and canonical configuration identity, verifies the recorded PID still runs Irigate, and reports the process's effective startup metadata. Missing or stale control state reports `stopped`, independently of any retained runtime report.
 - `irigate reload` loads the profile without resolving upstream environments, validates the control document against the profile and canonical configuration path, verifies the PID still runs Irigate, and sends `SIGHUP`. The serving process wakes its existing atomic reload path immediately; profile validation or activation failures still preserve the last valid configuration.
 - `irigate stop` loads the profile without resolving upstream environments, validates the control document against the profile and canonical configuration path, verifies the PID still runs Irigate, sends `SIGTERM`, and waits for owned control-state removal. Missing, stale, mismatched, or timed-out state fails closed.
 - Client disconnects and repeated broker lifecycles must leave no orphan upstream processes.
@@ -132,10 +133,10 @@ MCP call logs are a separate payload-bearing troubleshooting surface. Each serve
 - `src/irigate/upstream.py` — stdio worker lifecycle, worker-local argument rendering, concurrency, bounded calls, and process cleanup.
 - `src/irigate/qualification.py` — generic checks, qualifier registry, and sharing admission.
 - `src/irigate/runtime_report.py` — counters and atomic metadata-only snapshots.
-- `src/irigate/restart.py` — credential-free process-control documents, process identity validation, immediate reload signaling, and graceful stop signaling.
+- `src/irigate/restart.py` — credential-free effective server documents, process identity validation, immediate reload signaling, and graceful stop signaling.
 - `src/irigate/audit.py` — one metadata-only call record per outcome.
 - `src/irigate/logs.py` — protected start-scoped MCP payload logs, file-count rotation, latest-log resolution, and follow iteration.
-- `src/irigate/__main__.py` — `--check`, progressive upstream/tool/schema discovery, bundled-skill location, direct tool calls, `ps`, `logs`, `reload`, `stop`, `qualify`, and serving CLI contracts.
+- `src/irigate/__main__.py` — `--check`, progressive upstream/tool/schema discovery, bundled-skill location, direct tool calls, `ps`, `status`, `logs`, `reload`, `stop`, `qualify`, and serving CLI contracts.
 - `src/irigate/agent_skill/SKILL.md` — optional AgentSkills-compatible progressive-disclosure workflow and safety contract.
 - `profiles/` — static runtime and benchmark profiles.
 - `scripts/` — compatibility and resource-measurement harnesses.
@@ -210,6 +211,7 @@ uv run --frozen python -m irigate tools --config profiles/mvp.yaml --upstream co
 uv run --frozen python -m irigate schema --config profiles/mvp.yaml context7__resolve-library-id
 uv run --frozen python -m irigate call --config profiles/mvp.yaml <upstream>__<tool> --arguments '{}'
 uv run --frozen python -m irigate ps --config profiles/mvp.yaml
+uv run --frozen python -m irigate status --config profiles/mvp.yaml
 uv run --frozen python -m irigate logs --config profiles/mvp.yaml
 uv run --frozen python -m irigate logs -f --config profiles/mvp.yaml
 uv run --frozen python -m irigate reload --config profiles/mvp.yaml
@@ -234,6 +236,8 @@ Root `irigate --help` lists every subcommand and identifies the running package 
 `irigate call --config <profile> <upstream>__<tool> [--arguments <JSON-object>]` invokes one namespaced tool without opening the HTTP listener. It writes the complete MCP result as JSON, maps successful/tool-error results to exit codes `0`/`1`, rejects malformed or non-object arguments with exit code `2`, and closes the selected worker before exiting. Credentials remain broker-process environment values and must not be supplied in tool arguments.
 
 `irigate ps --config <profile> [--json]` reads the configured runtime report without resolving upstream environment references or starting processes. The table emits one upstream/agent row with effective mode, live instances, activity state, elapsed idle time, configured idle timeout, calls, and failures; JSON mode preserves the complete snapshot. Elapsed idle time is computed at read time from the UTC idle-start timestamp. Process liveness reflects the latest atomic write, while usage counters cover only the broker run represented by that report.
+
+`irigate status --config <profile> [--json]` validates the selected process-control document without resolving upstream environment references or starting processes. Running output contains the verified PID, effective listener and endpoint, canonical configuration and runtime-report paths, current start-scoped log file, instance ID, version, and UTC start time. Missing control state reports `stopped` and identifies a retained runtime report; stale control state is marked separately rather than trusted as a live process.
 
 `irigate logs --config <profile> [-f]` prints the newest start-scoped log from the profile's configured or default runtime log directory without resolving upstream environment references or starting processes. `-f` keeps stdout open and flushes each appended JSON-line record. It follows the selected file; a later broker start creates a new file and requires a new `logs -f` invocation.
 

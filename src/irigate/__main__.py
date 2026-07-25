@@ -30,6 +30,8 @@ from irigate.restart import (
     RestartControl,
     RestartError,
     control_path,
+    process_is_irigate,
+    read_control,
     reload_running,
     stop_running,
 )
@@ -107,6 +109,11 @@ def build_parser() -> argparse.ArgumentParser:
     ps = subcommands.add_parser("ps", help="show MCP upstream and agent usage")
     ps.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     ps.add_argument("--json", action="store_true", help="print the runtime report as JSON")
+    status = subcommands.add_parser(
+        "status", help="show effective running Irigate server information"
+    )
+    status.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
+    status.add_argument("--json", action="store_true", help="print server status as JSON")
     logs = subcommands.add_parser("logs", help="print the latest MCP call log")
     logs.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     logs.add_argument(
@@ -329,6 +336,68 @@ def format_process_report(report: dict[str, object]) -> str:
     )
 
 
+def server_status(config: BrokerConfig, config_path: Path) -> dict[str, object]:
+    report_path = config.runtime_report_path
+    if report_path is None:
+        raise RestartError("profile has no runtime_report_path; status is unavailable")
+    path = control_path(report_path)
+    stopped: dict[str, object] = {
+        "state": "stopped",
+        "profile": config.name,
+        "config_path": str(config_path.resolve()),
+        "runtime_report_path": str(report_path),
+        "runtime_report_exists": report_path.is_file(),
+        "control_path": str(path),
+    }
+    if not path.exists():
+        return stopped
+    control = read_control(
+        path,
+        expected_profile=config.name,
+        expected_config_path=config_path,
+    )
+    if not process_is_irigate(control.pid):
+        return {**stopped, "stale_control": True}
+    if control.schema_version < CONTROL_SCHEMA_VERSION:
+        return {
+            "state": "running",
+            "profile": control.profile,
+            "pid": control.pid,
+            "config_path": control.config_path,
+            "runtime_report_path": str(report_path),
+            "control_path": str(path),
+            "version": control.version,
+            "instance_id": control.instance_id,
+            "details": "restart required to publish effective listener and runtime paths",
+        }
+    host = control.host
+    if host is None:
+        raise RestartError("running Irigate server control document has no host")
+    host_for_url = f"[{host}]" if ":" in host else host
+    return {
+        "state": "running",
+        "profile": control.profile,
+        "pid": control.pid,
+        "host": host,
+        "port": control.port,
+        "endpoint": f"http://{host_for_url}:{control.port}/mcp",
+        "config_path": control.config_path,
+        "runtime_report_path": control.runtime_report_path,
+        "runtime_log_file": control.runtime_log_file,
+        "control_path": str(path),
+        "version": control.version,
+        "instance_id": control.instance_id,
+        "started_at": control.started_at,
+    }
+
+
+def format_server_status(status: dict[str, object]) -> str:
+    return "\n".join(
+        f"{key}={str(value).lower() if isinstance(value, bool) else value}"
+        for key, value in status.items()
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config_path = resolve_config_path(args.config)
@@ -349,7 +418,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         config = load_config(config_path)
-        if args.command not in {"upstreams", "ps", "logs", "reload", "stop"}:
+        if args.command not in {
+            "upstreams",
+            "ps",
+            "status",
+            "logs",
+            "reload",
+            "stop",
+        }:
             config.resolve_environment()
     except ConfigurationError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
@@ -460,6 +536,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(output)
         return 0
 
+    if args.command == "status":
+        try:
+            status = server_status(config, config_path)
+        except RestartError as exc:
+            print(f"status error: {exc}", file=sys.stderr)
+            return 1
+        output = (
+            json.dumps(status, sort_keys=True)
+            if args.json
+            else format_server_status(status)
+        )
+        print(output)
+        return 0
+
     if args.command == "stop":
         try:
             stop_running(
@@ -498,6 +588,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"logs={log_directory(config.name, config.runtime_log_path)}")
         return 0
 
+    try:
+        call_log = McpCallLog.start(config.name, directory=config.runtime_log_path)
+    except OSError as exc:
+        print(f"logs error: cannot start MCP log: {exc}", file=sys.stderr)
+        return 1
     process_control = None
     if config.runtime_report_path is not None:
         control = RestartControl(
@@ -507,13 +602,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             pid=os.getpid(),
             instance_id=uuid4().hex,
             version=__version__,
+            host=config.host,
+            port=config.port,
+            runtime_report_path=str(config.runtime_report_path.resolve()),
+            runtime_log_file=str(call_log.path.resolve()),
+            started_at=datetime.now(timezone.utc).isoformat(),
         )
         process_control = (control_path(config.runtime_report_path), control)
-    try:
-        call_log = McpCallLog.start(config.name, directory=config.runtime_log_path)
-    except OSError as exc:
-        print(f"logs error: cannot start MCP log: {exc}", file=sys.stderr)
-        return 1
     uvicorn.run(
         create_app(
             config,

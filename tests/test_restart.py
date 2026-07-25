@@ -45,6 +45,11 @@ def control(tmp_path: Path) -> RestartControl:
         pid=os.getpid(),
         instance_id="instance-1",
         version="0.1.0",
+        host="127.0.0.1",
+        port=8765,
+        runtime_report_path=str((tmp_path / "runtime.json").resolve()),
+        runtime_log_file=str((tmp_path / "runtime.jsonl").resolve()),
+        started_at="2026-07-25T12:00:00+00:00",
     )
 
 
@@ -60,6 +65,21 @@ def test_control_round_trip_is_atomic_and_strict(tmp_path: Path) -> None:
         expected_config_path=Path(expected.config_path),
     ) == expected
     assert not path.with_name(path.name + ".tmp").exists()
+
+
+def test_read_control_accepts_legacy_state_for_stop_and_reload(tmp_path: Path) -> None:
+    path = tmp_path / "runtime.json.control"
+    expected = RestartControl(
+        schema_version=1,
+        profile="test",
+        config_path=str((tmp_path / "profile.yaml").resolve()),
+        pid=os.getpid(),
+        instance_id="legacy-instance",
+        version="0.1.0",
+    )
+    write_control(path, expected)
+
+    assert read_control(path) == expected
 
 
 @pytest.mark.parametrize(
@@ -132,7 +152,7 @@ def test_process_identity_accepts_irigate_python_and_console_forms(tmp_path: Pat
     assert not process_is_irigate(5, proc_root=proc)
 
 
-@pytest.mark.parametrize("command", ["reload", "stop"])
+@pytest.mark.parametrize("command", ["status", "reload", "stop"])
 def test_process_control_subcommands_accept_config_before_or_after_command(
     command: str,
 ) -> None:
@@ -153,10 +173,11 @@ def test_cli_help_lists_process_control_commands_and_version(capsys) -> None:
     assert f"Irigate {__version__}" in root_help
     assert "~/.config/irigate/config.yaml" in root_help
     assert "logs" in root_help
+    assert "status" in root_help
     assert "reload" in root_help
     assert "stop" in root_help
 
-    for command in ("tools", "logs", "reload", "stop"):
+    for command in ("tools", "logs", "status", "reload", "stop"):
         with pytest.raises(SystemExit) as command_exit:
             parser.parse_args([command, "--help"])
         assert command_exit.value.code == 0
@@ -260,6 +281,7 @@ def write_stop_profile(tmp_path: Path, port: int) -> tuple[Path, Path]:
                 "host: 127.0.0.1",
                 f"port: {port}",
                 f"runtime_report_path: {report_path}",
+                f"runtime_log_path: {tmp_path / 'logs'}",
                 "upstreams:",
                 "  dormant:",
                 "    transport: stdio",
@@ -354,3 +376,97 @@ def test_cli_reload_keeps_the_running_irigate_instance_available(tmp_path: Path)
         if server.poll() is None:
             server.terminate()
             server.wait(timeout=5)
+
+
+def test_cli_status_reports_effective_running_process_details(tmp_path: Path) -> None:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    profile_path, report_path = write_stop_profile(tmp_path, port)
+    path = control_path(report_path)
+    server = subprocess.Popen(
+        [sys.executable, "-m", "irigate", "--config", str(profile_path)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        for _ in range(300):
+            if path.exists():
+                break
+            if server.poll() is not None:
+                break
+            time.sleep(0.01)
+        assert path.exists(), server.stderr.read() if server.stderr is not None else ""
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "irigate",
+                "status",
+                "--config",
+                str(profile_path),
+                "--json",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+
+        assert result.returncode == 0, result.stderr
+        status = json.loads(result.stdout)
+        assert status == {
+            "config_path": str(profile_path.resolve()),
+            "control_path": str(path),
+            "endpoint": f"http://127.0.0.1:{port}/mcp",
+            "host": "127.0.0.1",
+            "instance_id": status["instance_id"],
+            "pid": server.pid,
+            "port": port,
+            "profile": "stop-test",
+            "runtime_log_file": status["runtime_log_file"],
+            "runtime_report_path": str(report_path),
+            "started_at": status["started_at"],
+            "state": "running",
+            "version": __version__,
+        }
+        assert status["instance_id"]
+        assert status["started_at"]
+        assert Path(status["runtime_log_file"]).parent == tmp_path / "logs"
+    finally:
+        if server.poll() is None:
+            server.terminate()
+            server.wait(timeout=5)
+
+
+def test_cli_status_identifies_a_stale_runtime_report_as_stopped(tmp_path: Path) -> None:
+    profile_path, report_path = write_stop_profile(tmp_path, 8765)
+    report_path.write_text("{}\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "irigate",
+            "status",
+            "--config",
+            str(profile_path),
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=5,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "config_path": str(profile_path.resolve()),
+        "control_path": str(control_path(report_path)),
+        "profile": "stop-test",
+        "runtime_report_exists": True,
+        "runtime_report_path": str(report_path),
+        "state": "stopped",
+    }

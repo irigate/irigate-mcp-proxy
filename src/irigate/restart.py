@@ -8,14 +8,21 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-CONTROL_SCHEMA_VERSION = 1
-_CONTROL_FIELDS = {
+CONTROL_SCHEMA_VERSION = 2
+_CONTROL_FIELDS_V1 = {
     "schema_version",
     "profile",
     "config_path",
     "pid",
     "instance_id",
     "version",
+}
+_CONTROL_FIELDS_V2 = _CONTROL_FIELDS_V1 | {
+    "host",
+    "port",
+    "runtime_report_path",
+    "runtime_log_file",
+    "started_at",
 }
 
 
@@ -31,9 +38,14 @@ class RestartControl:
     pid: int
     instance_id: str
     version: str
+    host: str | None = None
+    port: int | None = None
+    runtime_report_path: str | None = None
+    runtime_log_file: str | None = None
+    started_at: str | None = None
 
     def __post_init__(self) -> None:
-        if self.schema_version != CONTROL_SCHEMA_VERSION:
+        if self.schema_version not in {1, CONTROL_SCHEMA_VERSION}:
             raise RestartError("unsupported process control schema_version")
         if not isinstance(self.profile, str) or not self.profile:
             raise RestartError("process control profile must be non-empty")
@@ -47,13 +59,36 @@ class RestartControl:
             raise RestartError("process control instance_id must be non-empty")
         if not isinstance(self.version, str) or not self.version:
             raise RestartError("process control version must be non-empty")
+        if self.schema_version == 1:
+            return
+        if not isinstance(self.host, str) or not self.host:
+            raise RestartError("process control host must be non-empty")
+        if (
+            not isinstance(self.port, int)
+            or isinstance(self.port, bool)
+            or not 1 <= self.port <= 65535
+        ):
+            raise RestartError("process control port must be between 1 and 65535")
+        for field_name in ("runtime_report_path", "runtime_log_file"):
+            value = getattr(self, field_name)
+            if not isinstance(value, str) or not Path(value).is_absolute():
+                raise RestartError(f"process control {field_name} must be absolute")
+        if not isinstance(self.started_at, str) or not self.started_at:
+            raise RestartError("process control started_at must be non-empty")
 
-    def to_dict(self) -> dict[str, str | int]:
-        return asdict(self)
+    def to_dict(self) -> dict[str, str | int | None]:
+        value = asdict(self)
+        if self.schema_version == 1:
+            return {key: item for key, item in value.items() if key in _CONTROL_FIELDS_V1}
+        return value
 
     @classmethod
     def from_dict(cls, value: Any) -> RestartControl:
-        if not isinstance(value, dict) or set(value) != _CONTROL_FIELDS:
+        if not isinstance(value, dict):
+            raise RestartError("process control document has invalid fields")
+        schema_version = value.get("schema_version")
+        expected_fields = _CONTROL_FIELDS_V1 if schema_version == 1 else _CONTROL_FIELDS_V2
+        if set(value) != expected_fields:
             raise RestartError("process control document has invalid fields")
         try:
             return cls(**value)
