@@ -1,7 +1,3 @@
-# Irigate
-
-> Shared local MCP infrastructure for developers running multiple AI coding agents.
-
 <p align="center">
   <img src="assets/logo.svg" alt="Irigate — an Iris flower opening into a gateway" width="760">
 </p>
@@ -11,7 +7,9 @@
   <a href="https://pypi.org/project/irigate/"><img src="https://img.shields.io/pypi/v/irigate?logo=pypi&label=PyPI" alt="PyPI"></a>
 </p>
 
-Irigate is a loopback-only MCP broker. It lets local agent sessions share explicitly qualified stdio MCP servers, reducing duplicate processes while providing metadata-only runtime reports, one audit record for every completed or rejected tool call, and local start-scoped MCP request/response logs.
+> Shared local MCP infrastructure for developers running multiple AI coding agents.
+
+[Irigate](https://irigate.io) is a loopback-only MCP broker. It lets local agent sessions share explicitly qualified stdio MCP servers—including Windows-native servers launched from WSL—while reducing duplicate processes and providing metadata-only runtime reports, one audit record for every completed or rejected tool call, and local start-scoped MCP request/response logs.
 
 ## Feature overview
 
@@ -23,8 +21,7 @@ Irigate is a loopback-only MCP broker. It lets local agent sessions share explic
 | **⚡** | **Explicit concurrency**<br>Choose serial or parallel execution per upstream, with independent queues and bounded call timeouts. | **◷** | **Bounded lifecycle**<br>Shut down each idle upstream on its configured timeout, restart it on demand, and terminate children without leaving orphans. |
 | **◇** | **Layered observability**<br>Keep reports and audit output metadata-only; inspect full local tool requests and responses only through protected rotating logs. | **⚖** | **Measured compatibility**<br>Run qualification, multi-client compatibility checks, and repeatable 1/5/20-client resource benchmarks. |
 | **⌘** | **Direct CLI tool calls**<br>Invoke one namespaced MCP tool from automation without starting the HTTP listener. | **▦** | **Process and usage inspection**<br>Use `irigate status` for the broker process and `irigate ps` for upstream state and per-agent usage. |
-
-An optional bundled Agent Skill provides progressive disclosure for large tool catalogs: inspect configured upstream metadata, list one upstream's brief tool metadata, load one exact schema, then call that tool without registering every schema in the agent context.
+| **⊞** | **First-class WSL/Windows bridging**<br>Run Windows-native MCP servers from a long-lived WSL broker with fresh interop selection and explicit path conversion. | **⋯** | **Progressive tool disclosure**<br>Inspect upstreams, brief tool metadata, and one exact schema before calling a tool without registering the full catalog. |
 
 ## Development highlights
 
@@ -49,18 +46,6 @@ A broker may improve this when:
 - The sessions use compatible state, workspace, and credential contexts.
 
 Sharing is not universally safe. Some MCP servers retain client-specific state, and distinct workspaces or credentials may still require separate instances. Irigate must prove the benefit per upstream rather than assuming every N×M process set can collapse to M.
-
-## Website
-
-The public website and documentation are maintained in the `site/` git submodule, backed by [`irigate/irigate.github.io`](https://github.com/irigate/irigate.github.io). The public project homepage is [irigate.io](https://irigate.io). The website repository owns Astro dependencies, content, verification, GitHub Pages deployment, and custom-domain operations. This source repository remains authoritative for broker behavior, architecture, benchmark evidence, and brand source assets.
-
-Initialize the website after cloning this repository:
-
-```bash
-git submodule update --init site
-```
-
-Website changes require two commits: commit and push inside `site/` first, then commit the updated `site` pointer in this repository.
 
 ## Requirements
 
@@ -138,6 +123,18 @@ uv run --frozen irigate --config profiles/mvp.yaml --check
 ```
 
 For source checkout setup, repository checks, and release-artifact verification, see [DEVELOPMENT.md](DEVELOPMENT.md). Maintainers should use [docs/RELEASING.md](docs/RELEASING.md) for PyPI trusted-publisher setup and tag-driven releases.
+
+## Website
+
+The public website and documentation are maintained in the `site/` git submodule, backed by [`irigate/irigate.github.io`](https://github.com/irigate/irigate.github.io). The website repository owns Astro dependencies, content, verification, GitHub Pages deployment, and custom-domain operations. This source repository remains authoritative for broker behavior, architecture, benchmark evidence, and brand source assets.
+
+Initialize the website after cloning this repository:
+
+```bash
+git submodule update --init site
+```
+
+Website changes require two commits: commit and push inside `site/` first, then commit the updated `site` pointer in this repository.
 
 ## Configuration
 
