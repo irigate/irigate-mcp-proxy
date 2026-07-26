@@ -15,6 +15,7 @@ _UPSTREAM_KEY = re.compile(r"^[a-z][a-z0-9-]*$")
 _PROFILE_NAME = re.compile(r"^[a-z][a-z0-9-]*$")
 _WORKSPACE_SOURCE = re.compile(r"^(?:[a-z][a-z0-9-]*\.)?workspace$")
 _INPUT_PLACEHOLDER = re.compile(r"^\{([^{}]+)\}$")
+_JSON_POINTER = re.compile(r"^(?:/(?:[^~]|~[01])*)+$")
 QUALIFIER_UPSTREAM_KEYS = {"context7-readonly-v3": "context7"}
 REGISTERED_QUALIFIERS = frozenset(QUALIFIER_UPSTREAM_KEYS)
 
@@ -54,6 +55,7 @@ class UpstreamConfig(BaseModel):
     command: str
     args: tuple[str, ...] = ()
     execution: Literal["native", "wsl-windows"] = "native"
+    wsl_path_arguments: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     cwd: Path | None = None
     env: dict[str, EnvironmentReference | str] = Field(default_factory=dict)
     inputs: dict[str, WorkspaceInputConfig] = Field(default_factory=dict)
@@ -88,6 +90,24 @@ class UpstreamConfig(BaseModel):
         if any(_ENV_REFERENCE.fullmatch(value) for value in values):
             raise ValueError("arguments must not contain environment references; use env")
         return values
+
+    @field_validator("wsl_path_arguments")
+    @classmethod
+    def validate_wsl_path_arguments(
+        cls, value: dict[str, tuple[str, ...]]
+    ) -> dict[str, tuple[str, ...]]:
+        if any(not tool for tool in value):
+            raise ValueError("wsl_path_arguments tool names must be non-empty")
+        for pointers in value.values():
+            if not pointers or any(_JSON_POINTER.fullmatch(pointer) is None for pointer in pointers):
+                raise ValueError(
+                    "wsl_path_arguments entries must be non-empty JSON pointers"
+                )
+            if len(pointers) != len(set(pointers)):
+                raise ValueError(
+                    "wsl_path_arguments JSON pointers must be unique per tool"
+                )
+        return value
 
     @field_validator("env", mode="before")
     @classmethod
@@ -145,6 +165,8 @@ class UpstreamConfig(BaseModel):
                 raise ValueError("dynamic inputs require a non-shareable upstream")
         elif placeholders or malformed_placeholders:
             raise ValueError("input placeholder is invalid without inputs")
+        if self.wsl_path_arguments and self.execution != "wsl-windows":
+            raise ValueError("wsl_path_arguments requires execution: wsl-windows")
         if self.shareable and self.qualifier not in REGISTERED_QUALIFIERS:
             names = ", ".join(sorted(REGISTERED_QUALIFIERS))
             raise ValueError(f"shareable upstream requires a registered qualifier: {names}")

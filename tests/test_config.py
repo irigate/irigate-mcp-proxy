@@ -317,6 +317,48 @@ def test_loads_explicit_wsl_windows_execution_mode(tmp_path: Path) -> None:
     assert config.upstreams["echo"].execution == "wsl-windows"
 
 
+def test_loads_explicit_wsl_path_arguments(tmp_path: Path) -> None:
+    profile = VALID_PROFILE.replace(
+        "    command: python3",
+        "    command: cmd.exe\n"
+        "    execution: wsl-windows\n"
+        "    wsl_path_arguments:\n"
+        "      '*': [/filePath]\n"
+        "      export_html: [/outputPath]\n"
+        "      export_nodes: [/outputDir]",
+    )
+
+    config = load_config(write_profile(tmp_path, profile))
+
+    assert config.upstreams["echo"].wsl_path_arguments == {
+        "*": ("/filePath",),
+        "export_html": ("/outputPath",),
+        "export_nodes": ("/outputDir",),
+    }
+
+
+@pytest.mark.parametrize(
+    ("wsl_path_arguments", "error"),
+    [
+        ("{'*': [/filePath]}", "wsl-windows"),
+        ("{'': [/filePath]}", "tool names"),
+        ("{'*': [filePath]}", "JSON pointers"),
+        ("{'*': ['/bad~2escape']}", "JSON pointers"),
+        ("{'*': [/filePath, /filePath]}", "unique"),
+    ],
+)
+def test_rejects_invalid_wsl_path_arguments(
+    tmp_path: Path, wsl_path_arguments: str, error: str
+) -> None:
+    profile = VALID_PROFILE.replace(
+        "    command: python3",
+        f"    command: python3\n    wsl_path_arguments: {wsl_path_arguments}",
+    )
+
+    with pytest.raises(ConfigurationError, match=error):
+        load_config(write_profile(tmp_path, profile))
+
+
 def test_rejects_unknown_execution_mode(tmp_path: Path) -> None:
     profile = VALID_PROFILE.replace(
         "    command: python3",
@@ -324,6 +366,18 @@ def test_rejects_unknown_execution_mode(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ConfigurationError, match="execution"):
+        load_config(write_profile(tmp_path, profile))
+
+
+def test_rejects_removed_path_arguments_name(tmp_path: Path) -> None:
+    profile = VALID_PROFILE.replace(
+        "    command: python3",
+        "    command: cmd.exe\n"
+        "    execution: wsl-windows\n"
+        "    path_arguments: {'*': [/filePath]}",
+    )
+
+    with pytest.raises(ConfigurationError, match="path_arguments"):
         load_config(write_profile(tmp_path, profile))
 
 

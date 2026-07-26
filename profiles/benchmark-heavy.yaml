@@ -72,6 +72,10 @@ upstreams:
     command: cmd.exe
     args: ["/c", "npx", "-y", "chrome-devtools-mcp@latest", "--autoConnect", "--no-usage-statistics"]
     execution: wsl-windows
+    wsl_path_arguments:
+      "*": ["/filePath"]
+      get_network_request: ["/requestFilePath", "/responseFilePath"]
+      lighthouse_audit: ["/outputDirPath"]
     env: {}
     shareable: false
     concurrency: serial

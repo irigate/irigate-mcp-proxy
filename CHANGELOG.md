@@ -2,6 +2,52 @@
 
 All notable changes to Irigate are documented here. Releases follow Semantic Versioning.
 
+## Unreleased
+
+## [0.4.0] - 2026-07-26
+
+Irigate 0.4.0 makes filesystem arguments reliable when WSL agents call Windows-native MCP servers. Profiles retain explicit, auditable path mappings, while `irigate doctor` derives those mappings from each configured server's live tool schemas instead of requiring users to inspect schemas manually.
+
+### Highlights
+
+#### Translate only declared MCP request fields
+
+`wsl_path_arguments` maps exact upstream tool names—or `*`—to JSON Pointers in their request objects. Irigate deep-copies each call and translates only those declared POSIX paths at the worker boundary. Windows paths, missing optional fields, and empty values remain unchanged; configured non-string values fail closed.
+
+#### Configure mappings from live schemas
+
+`irigate doctor` starts only upstreams declared with `execution: wsl-windows`, inspects their advertised input schemas, and reports missing file or directory fields. `doctor --apply` merges the findings into the profile without replacing operator-authored mappings or unrelated YAML text, validates the result before replacement, and creates a first-repair backup.
+
+#### Keep callers and troubleshooting evidence WSL-native
+
+Workspace process arguments receive the same WSL-to-Windows conversion. Protected MCP payload logs retain the original client-facing arguments, while Windows upstreams receive the translated worker-local copy. Slash-prefixed drive paths emitted by some Windows applications, such as `/C:/Users/example/design.pen`, are normalized directly rather than misrouted through `wslpath`.
+
+### Added
+
+- Explicit `wsl_path_arguments` JSON-pointer mappings for translating selected POSIX tool-call paths before dispatch to `wsl-windows` upstreams.
+- Automatic Windows-path rendering for canonical `{workspace}` process arguments on `wsl-windows` upstreams.
+- `irigate doctor` schema discovery and `--apply` repair for WSL-to-Windows path mappings, with comment-preserving atomic writes and a first-repair backup.
+
+### Changed
+
+- Slash-prefixed Windows drive paths are normalized to native drive paths before dispatch.
+- MCP payload logs preserve pre-transformation request arguments for WSL-side diagnosis.
+- The bundled benchmark Windows Chrome profile maps its documented file and report output fields.
+
+### Upgrade notes
+
+- Existing native upstreams require no profile changes.
+- For every `execution: wsl-windows` upstream, run `irigate doctor --config <profile>` and apply reported mappings with `--apply`.
+- `path_arguments` is not accepted; use the explicit `wsl_path_arguments` field.
+- Reload the profile after applying mappings. Restart long-running Irigate processes after upgrading so they import the 0.4.0 runtime.
+
+### Installation
+
+```bash
+uv tool install "https://github.com/irigate/irigate-mcp-proxy/releases/download/v0.4.0/irigate-0.4.0-py3-none-any.whl"
+irigate --version
+```
+
 ## [0.3.0] - 2026-07-26
 
 Irigate 0.3.0 is the first tagged GitHub release. It turns selected local stdio MCP servers into one loopback Streamable HTTP endpoint while keeping process sharing explicit and context-bound servers isolated. This release adds the operational layer needed for long-running daily use, including reliable Windows MCP launches from WSL.
@@ -59,4 +105,5 @@ uv tool install "https://github.com/irigate/irigate-mcp-proxy/releases/download/
 irigate --version
 ```
 
+[0.4.0]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.4.0
 [0.3.0]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.3.0

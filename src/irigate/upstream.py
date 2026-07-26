@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import copy
+import re
 import stat
+import subprocess
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
 
@@ -15,6 +19,7 @@ from mcp.shared.exceptions import McpError
 from irigate.models import UpstreamConfig
 
 _TRANSPORT_MCP_ERROR_MESSAGES = frozenset({"Connection closed", "Session terminated"})
+_SLASH_DRIVE_PATH = re.compile(r"^/([A-Za-z]):(?:/|$)")
 
 
 class UpstreamError(RuntimeError):
@@ -23,6 +28,10 @@ class UpstreamError(RuntimeError):
 
 class UpstreamLaunchError(UpstreamError):
     """An upstream cannot start until the local process environment is repaired."""
+
+
+class UpstreamArgumentError(UpstreamLaunchError):
+    """A configured argument transformation cannot safely forward the call."""
 
 
 class UpstreamTimeout(UpstreamError):
@@ -54,6 +63,98 @@ def _wsl_windows_environment(
         )
     endpoint = max(candidates, key=lambda candidate: candidate[0])[1]
     return {**environment, "WSL_INTEROP": str(endpoint)}
+
+
+@lru_cache(maxsize=256)
+def _wsl_windows_path(value: str) -> str:
+    """Convert one absolute POSIX path while preserving Windows and non-path strings."""
+
+    if not value.startswith("/"):
+        return value
+    drive_match = _SLASH_DRIVE_PATH.match(value)
+    if drive_match is not None:
+        drive = drive_match.group(1).upper()
+        suffix = value[4:].replace("/", "\\")
+        return f"{drive}:\\{suffix}" if suffix else f"{drive}:\\"
+    try:
+        completed = subprocess.run(
+            ["wslpath", "-w", "--", value],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        raise UpstreamArgumentError(
+            "configured WSL path argument could not be converted"
+        ) from exc
+    converted = completed.stdout.rstrip("\r\n")
+    if completed.returncode != 0 or not converted:
+        raise UpstreamArgumentError(
+            "configured WSL path argument could not be converted"
+        )
+    return converted
+
+
+def _pointer_tokens(pointer: str) -> tuple[str, ...]:
+    return tuple(
+        token.replace("~1", "/").replace("~0", "~")
+        for token in pointer[1:].split("/")
+    )
+
+
+def _transform_wsl_windows_paths(
+    arguments: dict[str, Any], pointers: tuple[str, ...]
+) -> dict[str, Any]:
+    """Return a copy with configured JSON-pointer string values converted for Windows."""
+
+    transformed = copy.deepcopy(arguments)
+    for pointer in pointers:
+        tokens = _pointer_tokens(pointer)
+        current: Any = transformed
+        missing = False
+        for token in tokens[:-1]:
+            if isinstance(current, dict) and token in current:
+                current = current[token]
+            elif isinstance(current, list) and token.isdigit() and int(token) < len(current):
+                current = current[int(token)]
+            else:
+                missing = True
+                break
+        if missing:
+            continue
+        target = tokens[-1]
+        if isinstance(current, dict):
+            if target not in current:
+                continue
+            value = current[target]
+            setter = lambda converted, current=current, target=target: current.__setitem__(
+                target, converted
+            )
+        elif isinstance(current, list) and target.isdigit() and int(target) < len(current):
+            index = int(target)
+            value = current[index]
+            setter = lambda converted, current=current, index=index: current.__setitem__(
+                index, converted
+            )
+        else:
+            continue
+        if not isinstance(value, str):
+            raise UpstreamArgumentError("configured path argument must reference a string")
+        if value.startswith("/"):
+            setter(_wsl_windows_path(value))
+    return transformed
+
+
+def _render_upstream_args(
+    config: UpstreamConfig, inputs: Mapping[str, str]
+) -> list[str]:
+    placeholder = "{" + "|".join(config.workspace_sources) + "}"
+    args = [inputs["workspace"] if arg == placeholder else arg for arg in config.args]
+    if config.execution == "wsl-windows" and config.inputs:
+        return [
+            _wsl_windows_path(arg) if arg == inputs["workspace"] else arg for arg in args
+        ]
+    return args
 
 
 @dataclass(slots=True)
@@ -121,11 +222,7 @@ class UpstreamWorker:
     async def _run(self) -> None:
         assert self._ready is not None
         try:
-            placeholder = "{" + "|".join(self.config.workspace_sources) + "}"
-            args = [
-                self.inputs["workspace"] if arg == placeholder else arg
-                for arg in self.config.args
-            ]
+            args = _render_upstream_args(self.config, self.inputs)
             environment = self.environment
             if self.config.execution == "wsl-windows":
                 environment = _wsl_windows_environment(environment)
@@ -194,7 +291,22 @@ class UpstreamWorker:
         if self._event_sink is not None:
             self._event_sink("queue_duration", time.monotonic() - request.enqueued_at)
         try:
-            result = await session.call_tool(request.tool, request.arguments)
+            arguments = request.arguments
+            if self.config.execution == "wsl-windows":
+                pointers = tuple(
+                    dict.fromkeys(
+                        self.config.wsl_path_arguments.get("*", ())
+                        + self.config.wsl_path_arguments.get(request.tool, ())
+                    )
+                )
+                if pointers:
+                    arguments = await asyncio.to_thread(
+                        _transform_wsl_windows_paths, arguments, pointers
+                    )
+            result = await session.call_tool(request.tool, arguments)
+        except UpstreamArgumentError as exc:
+            if not request.result.done():
+                request.result.set_exception(exc)
         except McpError as exc:
             if not request.result.done():
                 if exc.error.message in _TRANSPORT_MCP_ERROR_MESSAGES:

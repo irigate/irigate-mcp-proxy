@@ -17,6 +17,12 @@ from irigate import __version__
 from irigate.app import create_app
 from irigate.broker import Broker, BrokerInitializationError
 from irigate.config import ConfigurationError, load_config
+from irigate.doctor import (
+    DoctorError,
+    WslPathFinding,
+    diagnose_wsl_path_arguments,
+    repair_wsl_path_arguments,
+)
 from irigate.logs import McpCallLog, iter_log, latest_log, log_directory
 from irigate.migration import (
     MigrationError,
@@ -94,6 +100,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     upstreams.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     upstreams.add_argument("--json", action="store_true", help="print metadata as JSON")
+    doctor = subcommands.add_parser(
+        "doctor",
+        help="diagnose WSL-to-Windows tool path configuration",
+    )
+    doctor.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
+    doctor.add_argument(
+        "--apply",
+        action="store_true",
+        help="write schema-derived wsl_path_arguments to the profile",
+    )
+    doctor.add_argument("--json", action="store_true", help="print findings as JSON")
     schema = subcommands.add_parser("schema", help="print one exact namespaced tool schema")
     schema.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     schema.add_argument("tool", help="exact namespaced tool name")
@@ -178,6 +195,53 @@ def configured_upstream_metadata(
         {"name": key, "description": upstream.description}
         for key, upstream in config.upstreams.items()
     ]
+
+
+def _finding_document(finding: WslPathFinding) -> dict[str, object]:
+    return {
+        "name": finding.upstream,
+        "status": "repair-needed" if finding.needs_repair else "healthy",
+        "discovered": finding.discovered,
+        "configured": finding.configured,
+        "recommended": finding.recommended,
+    }
+
+
+def doctor_document(
+    config: BrokerConfig,
+    config_path: Path,
+    findings: Sequence[WslPathFinding],
+) -> dict[str, object]:
+    if not findings:
+        status = "not-applicable"
+    elif any(finding.needs_repair for finding in findings):
+        status = "repair-needed"
+    else:
+        status = "healthy"
+    return {
+        "profile": config.name,
+        "config_path": str(config_path.resolve()),
+        "status": status,
+        "upstreams": [_finding_document(finding) for finding in findings],
+    }
+
+
+def format_doctor_document(document: dict[str, object]) -> str:
+    lines = [f"profile={document['profile']}", f"status={document['status']}"]
+    upstreams = document.get("upstreams", [])
+    if isinstance(upstreams, list):
+        for raw in upstreams:
+            if not isinstance(raw, dict):
+                continue
+            lines.append(f"{raw['name']}={raw['status']}")
+            if raw.get("status") != "repair-needed":
+                continue
+            recommended = raw.get("recommended", {})
+            if isinstance(recommended, dict):
+                for tool, pointers in recommended.items():
+                    if isinstance(pointers, (list, tuple)):
+                        lines.append(f"  {tool}: {','.join(str(item) for item in pointers)}")
+    return "\n".join(lines)
 
 
 async def discover_configured_tools(
@@ -420,6 +484,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         config = load_config(config_path)
         if args.command not in {
             "upstreams",
+            "doctor",
             "ps",
             "status",
             "logs",
@@ -452,6 +517,41 @@ def main(argv: Sequence[str] | None = None) -> int:
                 description = upstream["description"] or ""
                 print(f"{upstream['name']}\t{description}".rstrip())
         return 0
+
+    if args.command == "doctor":
+        async def discover_one(upstream: str) -> Sequence[types.Tool]:
+            return await discover_configured_tools(config, upstream=upstream)
+
+        try:
+            config.resolve_environment()
+            findings = asyncio.run(
+                diagnose_wsl_path_arguments(config, discover_one)
+            )
+            document = doctor_document(config, config_path, findings)
+            if args.apply:
+                repairs = {
+                    finding.upstream: finding.recommended
+                    for finding in findings
+                    if finding.needs_repair
+                }
+                backup = repair_wsl_path_arguments(config_path, repairs)
+                if repairs:
+                    document["status"] = "repaired"
+                    for raw in document["upstreams"]:  # type: ignore[index]
+                        if isinstance(raw, dict) and raw.get("name") in repairs:
+                            raw["status"] = "repaired"
+                    if backup is not None:
+                        document["backup"] = str(backup)
+        except (BrokerInitializationError, SelectionError, DoctorError, ConfigurationError) as exc:
+            print(f"doctor error: {exc}", file=sys.stderr)
+            return 2
+        if args.json:
+            print(json.dumps(document, separators=(",", ":")))
+        else:
+            print(format_doctor_document(document))
+            if "backup" in document:
+                print(f"backup={document['backup']}")
+        return 1 if document["status"] == "repair-needed" else 0
 
     if args.command == "tools":
         try:

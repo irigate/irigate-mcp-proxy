@@ -7,6 +7,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 ## Ownership
 
 - `models.py` owns typed static configuration and fail-closed field validation.
+- `doctor.py` owns WSL path-schema inference, findings, mapping merge, and comment-preserving atomic profile repair.
 - `workspace.py` owns strict canonical directory resolution and segment-based `allowed_roots` authorization.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
 - `migration.py` owns common agent-config discovery, JSON/YAML/TOML conversion, backup creation, and atomic replacement.
@@ -15,7 +16,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `app.py` owns the loopback Streamable HTTP application, agent-label propagation, Origin policy, background profile watcher, and serving-process control lifecycle.
 - `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, input-fingerprinted worker selection, and atomic upstream reload.
 - `selection.py` owns typed agent selector parsing, namespaced input validation and canonicalization, normalization, and fail-closed set computation.
-- `upstream.py` owns one stdio process/session worker, explicit native or WSL-to-Windows launch preparation, worker-local argument rendering, bounded calls, and exact call activity transitions.
+- `upstream.py` owns one stdio process/session worker, explicit native or WSL-to-Windows launch preparation, worker-local process and tool-call path rendering, bounded calls, and exact call activity transitions.
 - `qualification.py` owns generic checks and reviewed upstream-specific sharing admission.
 - `runtime_report.py` owns metadata-only counters and atomic JSON snapshots.
 - `restart.py` owns credential-free effective server state, strict process identity checks, immediate reload signaling, and graceful stop signaling.
@@ -27,7 +28,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Bind addresses are loopback-only.
 - Upstream transport is stdio-only; changing the transport requires an explicit design decision and updates to `IMPLEMENTATION.md`.
 - Profile environment values are strings: exact `${ENV_NAME}` values resolve from the broker process and all other strings are passed literally. Credentials use references and resolved values never appear in validation output.
-- Windows-native executables launched by WSL require `execution: wsl-windows`; each spawn uses the newest live WSL interop socket instead of the broker's potentially stale inherited endpoint. Missing interop returns a safe restart instruction.
+- Windows-native executables launched by WSL require `execution: wsl-windows`; each spawn uses the newest live WSL interop socket instead of the broker's potentially stale inherited endpoint. Optional `wsl_path_arguments` JSON pointers convert only declared POSIX absolute tool-call strings on a copied payload, normalize slash-prefixed Windows drive paths without sending them through `wslpath`, and render workspace process arguments automatically. Missing interop or failed conversion returns a safe error.
 - Dynamic upstream configuration is limited to a required `workspace` directory input on non-shareable upstreams, rendered through exactly one standalone placeholder. A placeholder may list ordered scoped-to-global sources, such as `{filesystem.workspace|github.workspace|workspace}`; the first supplied source wins and one global value may feed multiple selected upstreams.
 - Each workspace `allowed_roots` entry authorizes its canonical directory and descendants. Leading `~` and braced environment references expand while loading the profile, and environment-derived roots must be absolute.
 - Profile path precedence is explicit `--config`, then `IRIGATE_CONFIG`, then `~/.config/irigate/config.yaml`.
@@ -37,6 +38,8 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `serial` and `parallel` concurrency are explicit per-upstream contracts.
 - Non-shareable workers are keyed by downstream session, upstream, and a stable fingerprint of canonical inputs; raw input values never enter runtime or audit metadata.
 - Dynamic workspace arguments are rendered into a fresh worker-local argument list immediately before process startup; frozen profile arguments are never mutated.
+- WSL-to-Windows tool path conversion happens only on the worker-boundary copy. Protected payload logs preserve the original client-facing arguments.
+- WSL path diagnosis starts only explicit `wsl-windows` upstreams, infers filesystem fields from advertised schemas without treating arbitrary strings as paths, preserves configured mappings, and writes only with `doctor --apply` after temporary-profile validation.
 - Every upstream declares a positive `idle_timeout_seconds`; each shared or isolated worker expires independently when it has no queued or active calls and is recreated on demand.
 - Shutdown closes the HTTP session manager before workers and bounds active-call draining.
 - Requested sharing defaults to isolated when qualification fails; strict mode aborts startup.

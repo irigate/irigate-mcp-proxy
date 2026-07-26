@@ -35,6 +35,7 @@ Profiles define:
 - Optional short upstream descriptions for progressive metadata discovery.
 - Upstream key, stdio command, arguments, and literal or referenced environment values.
 - Explicit native or WSL-to-Windows process execution mode.
+- Optional exact tool-to-JSON-pointer mappings for WSL-to-Windows call-path conversion.
 - Explicit `shareable` mode and qualifier name.
 - Explicit `serial` or `parallel` concurrency.
 - Required per-upstream idle timeout, call timeout, and degradation thresholds.
@@ -50,6 +51,7 @@ Constraints:
 - Environment values are strings. Exact `${ENV_NAME}` values reference the broker process environment; other strings are passed literally. Credentials belong in references, not profile literals.
 - Unknown environment references fail during loading.
 - `execution: wsl-windows` refreshes `WSL_INTEROP` from the newest live `/run/WSL/<pid>_interop` socket immediately before each spawn. Missing live interop fails with a safe restart instruction rather than a raw pipe error.
+- `wsl_path_arguments` is valid only for `execution: wsl-windows`. Its `*` and exact-tool entries contain unique non-empty JSON pointers. POSIX absolute string values are converted with `wslpath -w` on a deep-copied call payload immediately before upstream dispatch; slash-prefixed Windows drive paths are normalized directly; missing pointers and non-POSIX strings pass through, while configured non-string values fail closed.
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields, duplicate YAML keys, unsupported transports, and non-loopback binds are errors.
 
@@ -64,7 +66,7 @@ Per-session inputs are a narrow dynamic-input contract. The currently supported 
 - `workspace.resolve_workspace()` requires an explicit absolute path, resolves it with `strict=True`, requires a directory, canonicalizes each pattern's literal prefix, and performs memoized segment matching without shell glob expansion or filesystem enumeration.
 - Authorization compares canonical path segments, so lexical traversal, sibling-prefix confusion, and final or intermediate symlink escapes do not inherit access from the untrusted path string.
 
-`selection.py` separates input sources from selectors, requires an explicit positive upstream or exact-tool selection, resolves each selected upstream's ordered source hierarchy, rejects unused or ambiguous forms, and stores canonical target values in immutable selection bindings. A global source may populate multiple selected upstreams, while each target still authorizes the directory against its own `allowed_roots`. The Streamable HTTP adapter records the resolved bindings when the MCP session ID is issued and rejects any later request that produces a different mapping. `Broker` keys isolated workers by `(session, upstream, input fingerprint)` and passes only the target's canonical workspace to `UpstreamWorker`. The worker renders the configured placeholder into a fresh argument list immediately before constructing `StdioServerParameters`; frozen profile arguments remain unchanged. Raw workspace values are excluded from audit and runtime-report metadata.
+`selection.py` separates input sources from selectors, requires an explicit positive upstream or exact-tool selection, resolves each selected upstream's ordered source hierarchy, rejects unused or ambiguous forms, and stores canonical target values in immutable selection bindings. A global source may populate multiple selected upstreams, while each target still authorizes the directory against its own `allowed_roots`. The Streamable HTTP adapter records the resolved bindings when the MCP session ID is issued and rejects any later request that produces a different mapping. `Broker` keys isolated workers by `(session, upstream, input fingerprint)` and passes only the target's canonical workspace to `UpstreamWorker`. The worker renders the configured placeholder into a fresh argument list immediately before constructing `StdioServerParameters`; frozen profile arguments remain unchanged. For `wsl-windows`, that rendered process argument is converted to a Windows path. Raw workspace values are excluded from audit and runtime-report metadata.
 
 Runtime reload behavior:
 
@@ -73,6 +75,16 @@ Runtime reload behavior:
 - A successful reload retires only changed active or removed upstream workers. Existing downstream Streamable HTTP sessions remain connected and selectors are evaluated against the refreshed profile.
 - Invalid files, missing environment references, and failed upstream initialization leave the last valid configuration active.
 - `name`, `host`, `port`, `runtime_report_path`, and `runtime_log_path` changes are rejected at runtime because they own start-scoped listener, control, report, or log state.
+
+### WSL path diagnosis
+
+`irigate doctor` removes the need to hand-author `wsl_path_arguments`:
+
+- It selects only upstreams with `execution: wsl-windows`, starts each independently, and inspects its advertised MCP input schemas.
+- It infers JSON pointers only for string fields whose names denote filesystem files or directories. Prompt, URL, JSONPath, and XPath strings are excluded.
+- A diagnostic run is read-only and exits `1` when mappings are missing, `0` when healthy or not applicable, and `2` when discovery or repair fails.
+- `--apply` merges inferred mappings with operator-authored entries, validates a temporary profile, creates one adjacent `.irigate-doctor.bak`, and atomically replaces the original while preserving comments and unrelated text.
+- Schema-derived mappings are a snapshot. Operators rerun the doctor after upgrading a Windows MCP server.
 
 ## Sharing and qualification
 
@@ -122,7 +134,7 @@ Audit records contain timestamp, upstream key, tool name, duration, and outcome.
 
 Neither surface may contain arguments, results, environment values, commands, authorization headers, credentials, or hashes of low-entropy secrets. Runtime reports may claim consolidation only when multiple logical clients reused a qualified worker.
 
-MCP call logs are a separate payload-bearing troubleshooting surface. Each server start and valid direct CLI call creates `~/.local/log/irigate/<profile>/<profile>-<UTC-start>-<pid>-<id>.jsonl` by default. The optional `runtime_log_path` profile field selects an exact replacement directory; relative values are anchored to the profile directory. Rotation retains the newest 10 files for that profile. The directory is mode `0700` and each file is mode `0600`. Records contain the agent label, complete `tools/call` arguments, complete MCP result or raised error, timestamp, and duration. They never contain broker environment values or upstream process commands unless a tool itself returns such data. Operators must treat the files as sensitive. Startup fails when the file cannot be created; a later append failure is reported to server stderr without replacing an already completed MCP result, which avoids unsafe retries of side-effecting calls.
+MCP call logs are a separate payload-bearing troubleshooting surface. Each server start and valid direct CLI call creates `~/.local/log/irigate/<profile>/<profile>-<UTC-start>-<pid>-<id>.jsonl` by default. The optional `runtime_log_path` profile field selects an exact replacement directory; relative values are anchored to the profile directory. Rotation retains the newest 10 files for that profile. The directory is mode `0700` and each file is mode `0600`. Records contain the agent label, complete client-facing `tools/call` arguments before any worker-boundary path transformation, complete MCP result or raised error, timestamp, and duration. They never contain broker environment values or upstream process commands unless a tool itself returns such data. Operators must treat the files as sensitive. Startup fails when the file cannot be created; a later append failure is reported to server stderr without replacing an already completed MCP result, which avoids unsafe retries of side-effecting calls.
 
 ## Module ownership
 

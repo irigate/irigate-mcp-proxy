@@ -10,12 +10,16 @@ import pytest
 from mcp import types
 from mcp.shared.exceptions import McpError
 
+import irigate.upstream as upstream_module
 from irigate.models import UpstreamConfig
 from irigate.upstream import (
     UpstreamError,
     UpstreamLaunchError,
     UpstreamWorker,
     _Call,
+    _render_upstream_args,
+    _transform_wsl_windows_paths,
+    _wsl_windows_path,
     _wsl_windows_environment,
 )
 
@@ -56,6 +60,143 @@ def test_wsl_windows_environment_ignores_non_socket_entries(tmp_path: Path) -> N
 def test_wsl_windows_environment_reports_missing_runtime_directory(tmp_path: Path) -> None:
     with pytest.raises(UpstreamLaunchError, match="WSL Windows interop is unavailable"):
         _wsl_windows_environment({}, runtime_dir=tmp_path / "missing")
+
+
+def test_wsl_windows_path_converts_posix_paths_and_preserves_windows_paths() -> None:
+    _wsl_windows_path.cache_clear()
+
+    assert _wsl_windows_path("/mnt/c/Users/example/design.pen") == (
+        "C:\\Users\\example\\design.pen"
+    )
+    assert _wsl_windows_path("C:\\Users\\example\\design.pen") == (
+        "C:\\Users\\example\\design.pen"
+    )
+    assert _wsl_windows_path("\\\\server\\share\\design.pen") == (
+        "\\\\server\\share\\design.pen"
+    )
+    assert _wsl_windows_path("/C:/Users/example/design.pen") == (
+        "C:\\Users\\example\\design.pen"
+    )
+
+
+def test_transforms_only_configured_wsl_path_arguments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        upstream_module,
+        "_wsl_windows_path",
+        lambda value: f"WINDOWS:{value}",
+    )
+    arguments = {
+        "filePath": "/home/user/design.pen",
+        "output": {"directory": "/mnt/c/Users/user/export"},
+        "alreadyWindows": "C:\\Users\\user\\design.pen",
+        "prompt": "/home/user is prose here",
+        "empty": "",
+    }
+
+    transformed = _transform_wsl_windows_paths(
+        arguments,
+        ("/filePath", "/output/directory", "/alreadyWindows", "/empty", "/missing"),
+    )
+
+    assert transformed == {
+        "filePath": "WINDOWS:/home/user/design.pen",
+        "output": {"directory": "WINDOWS:/mnt/c/Users/user/export"},
+        "alreadyWindows": "C:\\Users\\user\\design.pen",
+        "prompt": "/home/user is prose here",
+        "empty": "",
+    }
+    assert arguments["filePath"] == "/home/user/design.pen"
+    assert arguments["output"] == {"directory": "/mnt/c/Users/user/export"}
+
+
+def test_wsl_path_arguments_reject_configured_non_string_value() -> None:
+    with pytest.raises(UpstreamError, match="must reference a string"):
+        _transform_wsl_windows_paths({"filePath": 42}, ("/filePath",))
+
+
+def test_wsl_windows_workspace_argument_is_rendered_as_windows_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        upstream_module,
+        "_wsl_windows_path",
+        lambda value: f"WINDOWS:{value}",
+    )
+    config = UpstreamConfig.model_validate(
+        {
+            "command": "workspace.exe",
+            "args": ["--workspace", "{workspace}"],
+            "execution": "wsl-windows",
+            "inputs": {
+                "workspace": {
+                    "type": "directory",
+                    "required": True,
+                    "allowed_roots": ["/home/user"],
+                }
+            },
+            "idle_timeout_seconds": 300,
+        }
+    )
+
+    rendered = _render_upstream_args(config, {"workspace": "/home/user/project"})
+
+    assert rendered == ["--workspace", "WINDOWS:/home/user/project"]
+    assert config.args == ("--workspace", "{workspace}")
+
+
+@pytest.mark.asyncio
+async def test_worker_transforms_wsl_windows_paths_at_upstream_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RecordingSession:
+        arguments: dict[str, object] | None = None
+
+        async def call_tool(
+            self, tool: str, arguments: dict[str, object]
+        ) -> types.CallToolResult:
+            self.arguments = arguments
+            return types.CallToolResult(content=[], isError=False)
+
+    monkeypatch.setattr(
+        upstream_module,
+        "_wsl_windows_path",
+        lambda value: f"WINDOWS:{value}",
+    )
+    worker = UpstreamWorker(
+        "pencil",
+        UpstreamConfig.model_validate(
+            {
+                "command": "pencil.exe",
+                "execution": "wsl-windows",
+                "wsl_path_arguments": {
+                    "*": ["/filePath"],
+                    "export_html": ["/outputPath"],
+                },
+                "idle_timeout_seconds": 300,
+            }
+        ),
+        {},
+    )
+    arguments = {
+        "filePath": "/home/user/design.pen",
+        "outputPath": "/mnt/c/Users/user/export/index.html",
+    }
+    session = RecordingSession()
+    future: asyncio.Future[types.CallToolResult] = asyncio.get_running_loop().create_future()
+    request = _Call("export_html", arguments, future, time.monotonic())
+
+    await worker._execute_call(session, request)  # type: ignore[arg-type]
+
+    assert session.arguments == {
+        "filePath": "WINDOWS:/home/user/design.pen",
+        "outputPath": "WINDOWS:/mnt/c/Users/user/export/index.html",
+    }
+    assert arguments == {
+        "filePath": "/home/user/design.pen",
+        "outputPath": "/mnt/c/Users/user/export/index.html",
+    }
 
 
 @pytest.mark.asyncio

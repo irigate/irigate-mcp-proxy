@@ -13,8 +13,10 @@ Executable contracts for Irigate configuration, background reload, transport, ro
 - `test_migration.py` owns installed-agent discovery, explicit-file scope, JSON/YAML/TOML conversion, environment safety, conflict handling, backups, and migration CLI behavior.
 - `test_restart.py` owns process-control validation and compatibility, process identity, effective server status, immediate reload signaling, graceful stop signaling and cleanup, command visibility, version help, and CLI behavior.
 - `test_logs.py` owns default and configured runtime log paths, start-scoped MCP payload records, private path permissions, file-count rotation, latest-log CLI output, and live follow behavior.
-- `test_upstream.py` owns WSL-to-Windows interop endpoint selection and safe missing-endpoint failures.
-- `fixtures/` owns credential-free echo, state, workspace-argument, and Context7-shaped MCP servers used only by tests.
+- `test_upstream.py` owns WSL-to-Windows interop endpoint selection, explicit `wsl_path_arguments` and workspace path conversion, payload immutability, and safe conversion or missing-endpoint failures.
+- `test_doctor.py` owns schema inference, conservative field selection, merge behavior, backups, comment preservation, and atomic profile repair.
+- `test_doctor_cli.py` owns read-only findings, `--apply`, rerun health, JSON output, and no-applicable-upstream behavior.
+- `fixtures/` owns credential-free echo, state, workspace-argument, doctor-schema, and Context7-shaped MCP servers used only by tests.
 - `helpers.py` owns loopback test-server startup and typed test-profile construction.
 
 ## Local Contracts

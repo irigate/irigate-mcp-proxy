@@ -17,6 +17,7 @@ from irigate.qualification import QualificationResult, qualify_upstream
 from irigate.runtime_report import RuntimeMetrics
 from irigate.selection import InputBindings, Selection, ToolSelection
 from irigate.upstream import (
+    UpstreamArgumentError,
     UpstreamError,
     UpstreamLaunchError,
     UpstreamTimeout,
@@ -558,6 +559,16 @@ class Broker:
                 upstream=upstream_key,
                 tool=tool_name,
                 outcome="timeout",
+                duration_seconds=time.monotonic() - audit_started,
+            )
+            return self._error(str(exc))
+        except UpstreamArgumentError as exc:
+            await self._record_failure(upstream_key, crash=False)
+            self._runtime.agent_failed(agent, upstream_key)
+            self._audit.emit(
+                upstream=upstream_key,
+                tool=tool_name,
+                outcome="upstream_error",
                 duration_seconds=time.monotonic() - audit_started,
             )
             return self._error(str(exc))

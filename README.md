@@ -68,10 +68,10 @@ The default profile defines real MCP upstreams. An upstream starts only when an 
 
 ## Installation
 
-Irigate 0.3.0 is distributed from GitHub Releases. Install the wheel as an isolated user application:
+Irigate 0.4.0 is distributed from GitHub Releases. Install the wheel as an isolated user application:
 
 ```bash
-uv tool install "https://github.com/irigate/irigate-mcp-proxy/releases/download/v0.3.0/irigate-0.3.0-py3-none-any.whl"
+uv tool install "https://github.com/irigate/irigate-mcp-proxy/releases/download/v0.4.0/irigate-0.4.0-py3-none-any.whl"
 ```
 
 `uv` installs the released version in an isolated tool environment and provides the `irigate` console script from its tool bin directory. Ensure that directory—normally `~/.local/bin`—is on `PATH`; run `uv tool update-shell` if needed. PyPI publication is not available yet. See [the changelog](CHANGELOG.md) for release highlights and upgrade notes.
@@ -103,7 +103,7 @@ This builds a regular installation from the checkout and copies the package into
 | Developing or debugging Irigate | Live edit (`--editable .`) |
 | Trying the current checkout as a release-like build | Snapshot (`--force --from . irigate`) |
 | Switching back to live edits after a snapshot install | `uv tool install --editable .` (overwrites the snapshot) |
-| Returning to version 0.3.0 after a checkout install | `uv tool install --force "https://github.com/irigate/irigate-mcp-proxy/releases/download/v0.3.0/irigate-0.3.0-py3-none-any.whl"` |
+| Returning to version 0.4.0 after a checkout install | `uv tool install --force "https://github.com/irigate/irigate-mcp-proxy/releases/download/v0.4.0/irigate-0.4.0-py3-none-any.whl"` |
 
 The `--force` flag in snapshot mode matters when Irigate is already installed in that tool environment: it forces replacement instead of skipping the existing installation. Omit it on a clean install. Remove either installation with `uv tool uninstall irigate`.
 
@@ -207,6 +207,7 @@ An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>
 | `command` | Yes | — | One executable token. Put command arguments in `args`. |
 | `args` | No | `[]` | Argument list. Environment references and credentials are not accepted. An upstream with `inputs.workspace` must contain exactly one standalone workspace placeholder. Pipe-separated sources are checked left to right and rendered from the canonical session input before process startup. |
 | `execution` | No | `native` | Process-launch environment. Use explicit `wsl-windows` for a Windows executable launched from WSL; Irigate refreshes the per-session WSL interop endpoint before every spawn. |
+| `wsl_path_arguments` | No | `{}` | Explicit tool-to-JSON-pointer map accepted only for `wsl-windows`. POSIX absolute strings at `*` and exact-tool pointers are converted with `wslpath -w` immediately before forwarding. |
 | `cwd` | No | Inherit broker directory | Working directory for the stdio process. Migration resolves relative agent paths against the owning user or project directory. |
 | `env` | No | `{}` | Child environment mapping. Values may be literal strings or explicit `${BROKER_ENV_NAME}` references. Use references for credentials so secret values stay out of the profile. |
 | `inputs` | No | `{}` | Per-session input declaration. Only a required `workspace` directory is supported. It needs non-empty `allowed_roots`, requires `shareable: false`, and is immutable after the MCP session is established. |
@@ -227,14 +228,26 @@ Long-running WSL brokers must mark Windows-native upstreams explicitly. WSL crea
 ```yaml
 upstreams:
   pencil:
-    command: /mnt/c/Users/example/AppData/Local/Programs/Pen/resources/app.asar.unpacked/out/mcp-server-windows-x64.exe
+    command: "/mnt/c/Users/<Windows-user>/AppData/Local/Programs/Pen/resources/app.asar.unpacked/out/mcp-server-windows-x64.exe"
     args: ["--app", "desktop"]
     execution: wsl-windows
+    wsl_path_arguments:
+      # filePath is the open .pen document path used across Pencil tools.
+      "*": ["/filePath"]
+      # These are exact Pencil MCP tool names and request fields.
+      export_html: ["/outputPath"]
+      export_nodes: ["/outputDir"]
     env: {}
     shareable: false
     concurrency: serial
     idle_timeout_seconds: 300
 ```
+
+Replace `<Windows-user>` with the Windows account directory under `/mnt/c/Users`. `wsl_path_arguments` is opt-in and valid only with `execution: wsl-windows`. Its keys are exact upstream MCP tool names or `*`; its values are JSON Pointers into request objects, not filesystem directories. `export_html` and `export_nodes` are Pencil MCP tools, while `outputPath` and `outputDir` are fields in those tools' request schemas.
+
+The actual paths arrive in MCP calls. For example, `/home/<WSL-user>/designs/dashboard.pen` converts to `\\wsl.localhost\\<distribution>\\home\\<WSL-user>\\designs\\dashboard.pen`. `/mnt/c/Users/<Windows-user>/Documents/pencil-export/dashboard.html` converts to `C:\\Users\\<Windows-user>\\Documents\\pencil-export\\dashboard.html`. These are caller-selected examples; Irigate neither creates nor selects those directories in the profile.
+
+Missing pointers, empty strings, Windows drive paths, UNC paths, and other non-POSIX strings pass through unchanged. Slash-prefixed Windows drive paths such as `/C:/Users/example/design.pen` are normalized directly rather than sent through `wslpath`. A configured pointer that resolves to a non-string rejects the call. Irigate converts a rendered `{workspace}` process argument automatically for Windows-native upstreams. Protected MCP payload logs retain the original client-facing arguments; only the worker-boundary copy is transformed.
 
 Literal strings are passed directly to the child process. `${ENV_NAME}` values are resolved from the broker process without being written into the profile, audit log, runtime report, or validation output:
 
@@ -346,6 +359,22 @@ http://127.0.0.1:8765/mcp?upstreams=code-review-graph&agent=codex
 Agent labels are metadata, not authentication. They must be 1–64 letters, digits, dots, underscores, or hyphens and are recorded only after a valid tool call. Omitted labels are grouped as `anonymous`; Irigate does not guess identity from client headers.
 
 ### CLI operations
+
+#### Configure Windows tool paths automatically
+
+When a profile contains one or more `execution: wsl-windows` upstreams, let Irigate inspect their live MCP tool schemas instead of writing `wsl_path_arguments` by hand:
+
+```bash
+# Diagnose only; exit 1 means the profile needs path mappings.
+irigate doctor --config ~/.config/irigate/config.yaml
+
+# Add the schema-derived mappings to the profile.
+irigate doctor --config ~/.config/irigate/config.yaml --apply
+```
+
+`doctor` starts only the configured `wsl-windows` upstreams, reads their advertised input schemas, and recognizes string fields whose names denote file or directory paths, including `filePath`, `outputPath`, `outputDir`, `requestFilePath`, and `responseFilePath`. It ignores unrelated strings such as prompts, URLs, JSONPath expressions, and XPath expressions. Existing operator-authored mappings are preserved; discovered paths already covered by a `*` mapping are not duplicated.
+
+Without `--apply`, the command does not modify the profile and returns `1` when repair is needed. With `--apply`, Irigate validates a temporary repaired profile, preserves the original as `<profile>.irigate-doctor.bak` on the first repair, then replaces the profile atomically. Comments and unrelated profile text remain intact. Re-run `doctor` after an upstream package upgrade because its tool schemas may have added path fields. Use `--json` for machine-readable findings.
 
 #### Optional progressive-disclosure Agent Skill
 
