@@ -7,6 +7,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 ## Ownership
 
 - `models.py` owns typed static configuration and fail-closed field validation.
+- `__init__.py` owns package identity and the source release-version declaration.
 - `doctor.py` owns WSL path-schema inference, findings, mapping merge, and comment-preserving atomic profile repair.
 - `workspace.py` owns strict canonical directory resolution and segment-based `allowed_roots` authorization.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.

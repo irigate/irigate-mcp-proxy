@@ -113,6 +113,7 @@ falling back to targeted file tools.
 ## Child DOX Index
 
 - `assets/AGENTS.md` — Reproducible project brand assets and Iris-gate design contract.
+- `docs/AGENTS.md` — Trusted-publisher release procedure and versioned GitHub release notes.
 - `profiles/AGENTS.md` — Validated static runtime and benchmark profiles.
 - `scripts/AGENTS.md` — Repeatable production compatibility and benchmark evidence harnesses.
 - `site/` (git submodule) — Static Astro website and GitHub Pages deployment. Upstream `irigate/irigate.github.io`, branch `main`; its own `AGENTS.md` controls website work.
@@ -123,7 +124,12 @@ falling back to targeted file tools.
 Root-owned artifacts:
 
 - `.github/workflows/site-check.yml` — Pull-request and non-main push validation for the static Astro site.
+- `.github/workflows/publish.yml` — Tag-gated PyPI Trusted Publishing and GitHub Release creation.
+- `LICENSE` — MIT license terms for source and PyPI distributions.
+- `pyproject.toml` — PyPI distribution metadata, package version, console entry point, and release-tool dependencies.
+- `uv.lock` — Frozen development and release-tool dependency resolution.
 - `README.md` — Current product boundary, MVP summary, and project status.
+- `DEVELOPMENT.md` — Checkout setup, repository verification, and release-artifact checks.
 - `CHANGELOG.md` — Versioned release highlights, behavior changes, upgrade notes, and installation artifacts.
 - `IMPLEMENTATION.md` — Current runtime architecture, implementation contracts, extension workflows, and verification.
 - `MARKET-RESEARCH.md` — Market hypothesis, competitive positioning, evidence requirements, and go/no-go criteria.

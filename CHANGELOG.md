@@ -4,6 +4,24 @@ All notable changes to Irigate are documented here. Releases follow Semantic Ver
 
 ## Unreleased
 
+## [0.4.1] - 2026-07-26
+
+Irigate 0.4.1 moves the supported installation path to PyPI. Runtime behavior is unchanged from 0.4.0.
+
+### Added
+
+- MIT license terms and SPDX-compatible PyPI license metadata.
+
+### Changed
+
+- `uv tool install irigate` and `pip install irigate` are the supported release-install commands.
+- Releases are immutable `vX.Y.Z` tags: GitHub Actions tests and builds the distributions, publishes them through PyPI Trusted Publishing, then creates the matching GitHub Release with those exact artifacts.
+
+### Upgrade notes
+
+- Replace direct GitHub wheel URLs with `uv tool install --force irigate` or `python -m pip install --upgrade irigate`.
+- Existing 0.4.0 installations keep the same runtime behavior; no profile migration is required.
+
 ## [0.4.0] - 2026-07-26
 
 Irigate 0.4.0 makes filesystem arguments reliable when WSL agents call Windows-native MCP servers. Profiles retain explicit, auditable path mappings, while `irigate doctor` derives those mappings from each configured server's live tool schemas instead of requiring users to inspect schemas manually.
@@ -105,5 +123,6 @@ uv tool install "https://github.com/irigate/irigate-mcp-proxy/releases/download/
 irigate --version
 ```
 
+[0.4.1]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.4.1
 [0.4.0]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.4.0
 [0.3.0]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.3.0

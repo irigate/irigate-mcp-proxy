@@ -4,10 +4,27 @@ build-backend = "hatchling.build"
 
 [project]
 name = "irigate"
-version = "0.4.0"
+version = "0.4.1"
 description = "Loopback-only broker for explicitly approved stdio MCP servers"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.15"
+keywords = ["ai-agents", "broker", "mcp", "model-context-protocol", "stdio"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development",
+  "Topic :: System :: Networking",
+]
 dependencies = [
   "mcp==1.28.1",
   "pydantic==2.12.5",
@@ -17,14 +34,22 @@ dependencies = [
   "uvicorn==0.51.0",
 ]
 
+[project.urls]
+Homepage = "https://irigate.io"
+Repository = "https://github.com/irigate/irigate-mcp-proxy"
+Issues = "https://github.com/irigate/irigate-mcp-proxy/issues"
+Changelog = "https://github.com/irigate/irigate-mcp-proxy/blob/main/CHANGELOG.md"
+
 [project.scripts]
 irigate = "irigate.__main__:main"
 
 [dependency-groups]
 dev = [
+  "build==1.5.0",
   "httpx==0.28.1",
   "pytest-asyncio==1.3.0",
   "pytest==9.0.2",
+  "twine==6.2.0",
 ]
 
 [tool.hatch.build.targets.wheel]

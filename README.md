@@ -6,6 +6,11 @@
   <img src="assets/logo.svg" alt="Irigate — an Iris flower opening into a gateway" width="760">
 </p>
 
+<p align="center">
+  <a href="https://github.com/irigate/irigate-mcp-proxy"><img src="https://img.shields.io/badge/GitHub-irigate%2Firigate--mcp--proxy-181717?logo=github" alt="GitHub"></a>
+  <a href="https://pypi.org/project/irigate/"><img src="https://img.shields.io/pypi/v/irigate?logo=pypi&label=PyPI" alt="PyPI"></a>
+</p>
+
 Irigate is a loopback-only MCP broker. It lets local agent sessions share explicitly qualified stdio MCP servers, reducing duplicate processes while providing metadata-only runtime reports, one audit record for every completed or rejected tool call, and local start-scoped MCP request/response logs.
 
 ## Feature overview
@@ -47,7 +52,7 @@ Sharing is not universally safe. Some MCP servers retain client-specific state, 
 
 ## Website
 
-The public website and documentation are maintained in the `site/` git submodule, backed by [`irigate/irigate.github.io`](https://github.com/irigate/irigate.github.io). The website repository owns Astro dependencies, content, verification, GitHub Pages deployment, and custom-domain operations. This source repository remains authoritative for broker behavior, architecture, benchmark evidence, and brand source assets.
+The public website and documentation are maintained in the `site/` git submodule, backed by [`irigate/irigate.github.io`](https://github.com/irigate/irigate.github.io). The public project homepage is [irigate.io](https://irigate.io). The website repository owns Astro dependencies, content, verification, GitHub Pages deployment, and custom-domain operations. This source repository remains authoritative for broker behavior, architecture, benchmark evidence, and brand source assets.
 
 Initialize the website after cloning this repository:
 
@@ -60,7 +65,7 @@ Website changes require two commits: commit and push inside `site/` first, then 
 ## Requirements
 
 - Python 3.11 through 3.14.
-- [`uv`](https://docs.astral.sh/uv/) for installation and execution.
+- [`uv`](https://docs.astral.sh/uv/) for the recommended isolated installation and repository execution.
 - Node.js with `npx` for the Context7 upstream in `profiles/mvp.yaml`.
 - An installed `code-review-graph` executable for the isolated code-review-graph upstream.
 
@@ -68,13 +73,22 @@ The default profile defines real MCP upstreams. An upstream starts only when an 
 
 ## Installation
 
-Irigate 0.4.0 is distributed from GitHub Releases. Install the wheel as an isolated user application:
+Install the published PyPI release as an isolated user application with `uv`:
 
 ```bash
-uv tool install "https://github.com/irigate/irigate-mcp-proxy/releases/download/v0.4.0/irigate-0.4.0-py3-none-any.whl"
+uv tool install irigate
+irigate --version
 ```
 
-`uv` installs the released version in an isolated tool environment and provides the `irigate` console script from its tool bin directory. Ensure that directory—normally `~/.local/bin`—is on `PATH`; run `uv tool update-shell` if needed. PyPI publication is not available yet. See [the changelog](CHANGELOG.md) for release highlights and upgrade notes.
+Or install it with `pip` in a virtual environment:
+
+```bash
+python3 -m venv ~/.venvs/irigate
+~/.venvs/irigate/bin/python -m pip install irigate
+~/.venvs/irigate/bin/irigate --version
+```
+
+`uv` provides the `irigate` console script from its tool bin directory. Ensure that directory—normally `~/.local/bin`—is on `PATH`; run `uv tool update-shell` if needed. See [the changelog](CHANGELOG.md) for release highlights and upgrade notes.
 
 ## Development installation
 
@@ -100,10 +114,11 @@ This builds a regular installation from the checkout and copies the package into
 
 | Goal | Mode |
 | --- | --- |
+| Install the official PyPI release | `uv tool install irigate` |
 | Developing or debugging Irigate | Live edit (`--editable .`) |
 | Trying the current checkout as a release-like build | Snapshot (`--force --from . irigate`) |
 | Switching back to live edits after a snapshot install | `uv tool install --editable .` (overwrites the snapshot) |
-| Returning to version 0.4.0 after a checkout install | `uv tool install --force "https://github.com/irigate/irigate-mcp-proxy/releases/download/v0.4.0/irigate-0.4.0-py3-none-any.whl"` |
+| Returning to the official PyPI release after a checkout install | `uv tool install --force irigate` |
 
 The `--force` flag in snapshot mode matters when Irigate is already installed in that tool environment: it forces replacement instead of skipping the existing installation. Omit it on a clean install. Remove either installation with `uv tool uninstall irigate`.
 
@@ -121,6 +136,8 @@ Run the checkout and confirm that the default profile loads without starting ups
 uv run --frozen irigate --help
 uv run --frozen irigate --config profiles/mvp.yaml --check
 ```
+
+For source checkout setup, repository checks, and release-artifact verification, see [DEVELOPMENT.md](DEVELOPMENT.md). Maintainers should use [docs/RELEASING.md](docs/RELEASING.md) for PyPI trusted-publisher setup and tag-driven releases.
 
 ## Configuration
 
@@ -544,6 +561,10 @@ Irigate is positioned as local AI developer infrastructure, not as a competitor 
 - `profiles/` — Validated loopback-only runtime and benchmark profiles.
 - `src/irigate/` — Installable package, configuration models, loader, and CLI.
 - `tests/` — Executable package and runtime contracts.
+
+## License
+
+Irigate is available under the [MIT License](LICENSE).
 
 ## Status
 
