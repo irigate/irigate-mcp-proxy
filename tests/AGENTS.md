@@ -23,6 +23,7 @@ Executable contracts for Irigate configuration, background reload, transport, ro
 
 - Tests must not read credential values or depend on operator `.env` files.
 - Environment tests cover mixed literal and referenced strings; reference tests use `monkeypatch` with synthetic values and assert that errors/output expose names only.
+- WSL CLI integration tests run only when `/run/WSL` has a live interop socket; conversion units mock `wslpath` so the Linux CI runner does not need WSL tooling.
 - Missing required-field tests exercise both loader errors and the CLI stderr boundary.
 - Process tests must restore the process table to baseline before passing.
 - Every regression test must fail against the behavior it was added to protect.

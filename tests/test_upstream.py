@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
+import subprocess
 import time
 from pathlib import Path
 
@@ -62,8 +63,20 @@ def test_wsl_windows_environment_reports_missing_runtime_directory(tmp_path: Pat
         _wsl_windows_environment({}, runtime_dir=tmp_path / "missing")
 
 
-def test_wsl_windows_path_converts_posix_paths_and_preserves_windows_paths() -> None:
+def test_wsl_windows_path_converts_posix_paths_and_preserves_windows_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _wsl_windows_path.cache_clear()
+    monkeypatch.setattr(
+        upstream_module.subprocess,
+        "run",
+        lambda arguments, **_kwargs: subprocess.CompletedProcess(
+            arguments,
+            0,
+            stdout="C:\\Users\\example\\design.pen\r\n",
+            stderr="",
+        ),
+    )
 
     assert _wsl_windows_path("/mnt/c/Users/example/design.pen") == (
         "C:\\Users\\example\\design.pen"

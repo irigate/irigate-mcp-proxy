@@ -6,10 +6,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "doctor_schema_server.py"
+requires_wsl_interop = pytest.mark.skipif(
+    not any(path.is_socket() for path in Path("/run/WSL").glob("*_interop")),
+    reason="requires a live WSL interop socket",
+)
 
 
 def write_profile(tmp_path: Path, *, execution: str = "wsl-windows") -> Path:
@@ -51,6 +56,7 @@ def run_doctor(profile: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+@requires_wsl_interop
 def test_doctor_reports_schema_derived_wsl_path_arguments_without_writing(
     tmp_path: Path,
 ) -> None:
@@ -88,6 +94,7 @@ def test_doctor_reports_schema_derived_wsl_path_arguments_without_writing(
     assert report_path.read_text(encoding="utf-8") == serving_report
 
 
+@requires_wsl_interop
 def test_doctor_apply_repairs_profile_and_second_run_is_healthy(tmp_path: Path) -> None:
     profile = write_profile(tmp_path)
 
