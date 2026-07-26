@@ -4,6 +4,15 @@ All notable changes to Irigate are documented here. Releases follow Semantic Ver
 
 ## Unreleased
 
+## [0.4.2] - 2026-07-26
+
+Irigate 0.4.2 republishes the current README to PyPI and makes the project mark load from an absolute public URL.
+
+### Fixed
+
+- PyPI now renders the Irigate logo instead of resolving its relative source against the package index.
+- The PyPI project description includes the latest README updates, including WSL/Windows bridging support.
+
 ## [0.4.1] - 2026-07-26
 
 Irigate 0.4.1 moves the supported installation path to PyPI. Runtime behavior is unchanged from 0.4.0.
@@ -123,6 +132,7 @@ uv tool install "https://github.com/irigate/irigate-mcp-proxy/releases/download/
 irigate --version
 ```
 
+[0.4.2]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.4.2
 [0.4.1]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.4.1
 [0.4.0]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.4.0
 [0.3.0]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.3.0

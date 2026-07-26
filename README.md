@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="Irigate — an Iris flower opening into a gateway" width="760">
+  <img src="https://raw.githubusercontent.com/irigate/irigate-mcp-proxy/main/assets/logo.svg" alt="Irigate — an Iris flower opening into a gateway" width="760">
 </p>
 
 <p align="center">
