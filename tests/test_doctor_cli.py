@@ -20,6 +20,7 @@ def write_profile(tmp_path: Path, *, execution: str = "wsl-windows") -> Path:
                 "name": "doctor-cli",
                 "host": "127.0.0.1",
                 "port": 8765,
+                "runtime_report_path": str(tmp_path / "runtime-report.json"),
                 "upstreams": {
                     "fixture": {
                         "command": sys.executable,
@@ -55,6 +56,9 @@ def test_doctor_reports_schema_derived_wsl_path_arguments_without_writing(
 ) -> None:
     profile = write_profile(tmp_path)
     original = profile.read_text(encoding="utf-8")
+    report_path = tmp_path / "runtime-report.json"
+    serving_report = '{"instance_id":"serving-sentinel"}\n'
+    report_path.write_text(serving_report, encoding="utf-8")
 
     result = run_doctor(profile, "--json")
 
@@ -81,6 +85,7 @@ def test_doctor_reports_schema_derived_wsl_path_arguments_without_writing(
         ],
     }
     assert profile.read_text(encoding="utf-8") == original
+    assert report_path.read_text(encoding="utf-8") == serving_report
 
 
 def test_doctor_apply_repairs_profile_and_second_run_is_healthy(tmp_path: Path) -> None:

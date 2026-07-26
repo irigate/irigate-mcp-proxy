@@ -134,6 +134,8 @@ Audit records contain timestamp, upstream key, tool name, duration, and outcome.
 
 Neither surface may contain arguments, results, environment values, commands, authorization headers, credentials, or hashes of low-entropy secrets. Runtime reports may claim consolidation only when multiple logical clients reused a qualified worker.
 
+Only the serving broker writes the configured runtime report. Transient brokers used by `tools`, `schema`, `doctor`, and direct `call` keep their metrics in memory so operator diagnostics cannot replace evidence for a concurrently running server.
+
 MCP call logs are a separate payload-bearing troubleshooting surface. Each server start and valid direct CLI call creates `~/.local/log/irigate/<profile>/<profile>-<UTC-start>-<pid>-<id>.jsonl` by default. The optional `runtime_log_path` profile field selects an exact replacement directory; relative values are anchored to the profile directory. Rotation retains the newest 10 files for that profile. The directory is mode `0700` and each file is mode `0600`. Records contain the agent label, complete client-facing `tools/call` arguments before any worker-boundary path transformation, complete MCP result or raised error, timestamp, and duration. They never contain broker environment values or upstream process commands unless a tool itself returns such data. Operators must treat the files as sensitive. Startup fails when the file cannot be created; a later append failure is reported to server stderr without replacing an already completed MCP result, which avoids unsafe retries of side-effecting calls.
 
 ## Module ownership

@@ -22,6 +22,8 @@ def write_profile(tmp_path: Path) -> Path:
                 "name: progressive-test",
                 "host: 127.0.0.1",
                 "port: 8765",
+                f"runtime_report_path: {tmp_path / 'runtime-report.json'}",
+                f"runtime_log_path: {tmp_path / 'logs'}",
                 "upstreams:",
                 "  echo:",
                 "    description: Echo test tools without retaining state.",
@@ -144,6 +146,31 @@ def test_schema_json_discloses_only_the_exact_tool_schema(tmp_path: Path) -> Non
     assert schema["inputSchema"]["type"] == "object"
     assert "value" in schema["inputSchema"]["properties"]
     assert "echo__terminate" not in result.stdout
+
+
+def test_transient_cli_brokers_preserve_serving_runtime_report(tmp_path: Path) -> None:
+    profile = write_profile(tmp_path)
+    report_path = tmp_path / "runtime-report.json"
+    serving_report = '{"instance_id":"serving-sentinel"}\n'
+    report_path.write_text(serving_report, encoding="utf-8")
+    env = {**os.environ, "UNSET_PROGRESSIVE_TEST_TOKEN": "synthetic"}
+
+    commands = (
+        ("tools", "--config", str(profile), "--upstream", "echo", "--json"),
+        ("schema", "--config", str(profile), "echo__repeat"),
+        (
+            "call",
+            "--config",
+            str(profile),
+            "echo__repeat",
+            "--arguments",
+            '{"value":"sentinel"}',
+        ),
+    )
+    for command in commands:
+        result = run_irigate(*command, env=env)
+        assert result.returncode == 0, result.stderr
+        assert report_path.read_text(encoding="utf-8") == serving_report
 
 
 def test_skill_path_points_to_the_packaged_progressive_skill() -> None:

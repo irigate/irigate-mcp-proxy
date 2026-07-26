@@ -7,7 +7,7 @@ Executable contracts for Irigate configuration, background reload, transport, ro
 ## Ownership
 
 - `test_*.py` files own the behavioral contracts documented in `IMPLEMENTATION.md`, including configuration-path precedence, profile-scoped XDG runtime-report defaults and overrides, ordered reusable workspace sources and allowed-root patterns, CLI tool discovery, calls and process reports, agent attribution, busy/idle/stopped transitions, selector parsing, selected-only activation, per-session workspace argument rendering, input-keyed isolation, and independent shared and isolated worker idle expiry.
-- `test_progressive_disclosure.py` owns static upstream metadata, selected brief tool discovery, exact schema output, and bundled Agent Skill availability.
+- `test_progressive_disclosure.py` owns static upstream metadata, selected brief tool discovery, exact schema output, bundled Agent Skill availability, and preservation of serving runtime evidence by transient CLI brokers.
 - `test_reload.py` owns connection-preserving active replacement, dormant reload behavior, and failed-reload fallback.
 - `test_workspace.py` owns canonical workspace resolution, allowed-root matching, descendant authorization, traversal handling, and symlink-escape rejection.
 - `test_migration.py` owns installed-agent discovery, explicit-file scope, JSON/YAML/TOML conversion, environment safety, conflict handling, backups, and migration CLI behavior.
@@ -15,7 +15,7 @@ Executable contracts for Irigate configuration, background reload, transport, ro
 - `test_logs.py` owns default and configured runtime log paths, start-scoped MCP payload records, private path permissions, file-count rotation, latest-log CLI output, and live follow behavior.
 - `test_upstream.py` owns WSL-to-Windows interop endpoint selection, explicit `wsl_path_arguments` and workspace path conversion, payload immutability, and safe conversion or missing-endpoint failures.
 - `test_doctor.py` owns schema inference, conservative field selection, merge behavior, backups, comment preservation, and atomic profile repair.
-- `test_doctor_cli.py` owns read-only findings, `--apply`, rerun health, JSON output, and no-applicable-upstream behavior.
+- `test_doctor_cli.py` owns read-only findings, `--apply`, rerun health, JSON output, no-applicable-upstream behavior, and preservation of the serving runtime report.
 - `fixtures/` owns credential-free echo, state, workspace-argument, doctor-schema, and Context7-shaped MCP servers used only by tests.
 - `helpers.py` owns loopback test-server startup and typed test-profile construction.
 

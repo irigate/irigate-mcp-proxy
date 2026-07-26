@@ -45,6 +45,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Requested sharing defaults to isolated when qualification fails; strict mode aborts startup.
 - Qualification probes use fixed non-destructive surfaces and never forward client payloads.
 - Runtime reports contain counts, durations, modes, activity state, idle timing, upstream keys, and validated agent labels only.
+- Only the serving broker publishes the configured runtime report. Transient discovery, doctor, and direct-call brokers keep metrics in memory so they cannot replace live process evidence.
 - Process-control documents are adjacent to configured runtime reports, contain only profile/process identity, effective listener and runtime-path metadata, and are treated as untrusted claims until profile, configuration path, and live process identity all match.
 - Process identity accepts `python -m irigate`, direct console-script argv, and Python shebang execution where the absolute `irigate` console-script path is argv 1; unrelated Python scripts remain rejected.
 - A degraded shared upstream remains degraded until process restart.
@@ -63,7 +64,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Qualification, schema discovery, and process startup occur only when an agent first selects an upstream; concurrent first selection is single-flight per upstream.
 - Exact tool selectors filter `tools/list` and dispatch; process-wide activation by another agent never broadens a request's selection.
 - Root and subcommand CLI help identify `~/.config/irigate/config.yaml` as the default profile file. Root help lists every subcommand and identifies the running package version; `reload` and `stop` help repeat that version, and `--version` prints it directly.
-- Direct CLI calls accept one JSON object, emit the complete MCP result as JSON, return nonzero for tool errors, and close their worker before exiting.
+- Direct CLI calls accept one JSON object, emit the complete MCP result as JSON, return nonzero for tool errors, close their worker before exiting, and do not replace the serving broker's runtime report.
 - Progressive CLI discovery keeps exact names visible: `upstreams` is static and environment-free, `tools --upstream --json` omits schemas, and `schema` emits one exact tool definition. Runtime discovery closes its selected workers before returning.
 - `skill-path` prints the bundled Agent Skill directory without loading a profile. The skill must not imply cross-command state retention or accept credentials in arguments.
 - Downstream `agent` labels are explicit attribution metadata, not authentication; omitted labels are `anonymous` and Irigate never infers identity.

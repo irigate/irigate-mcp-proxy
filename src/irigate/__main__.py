@@ -247,7 +247,7 @@ def format_doctor_document(document: dict[str, object]) -> str:
 async def discover_configured_tools(
     config: BrokerConfig, upstream: str | None = None
 ) -> list[types.Tool]:
-    broker = Broker(config)
+    broker = Broker(config, publish_runtime_report=False)
     await broker.start()
     try:
         query = () if upstream is None else (("upstreams", upstream),)
@@ -260,7 +260,7 @@ async def discover_configured_tools(
 async def discover_configured_tool_schema(
     config: BrokerConfig, tool_name: str
 ) -> types.Tool:
-    broker = Broker(config)
+    broker = Broker(config, publish_runtime_report=False)
     await broker.start()
     try:
         selection = parse_selection((("tools", tool_name),), config.upstreams)
@@ -279,7 +279,7 @@ async def call_configured_tool(
     *,
     call_log: McpCallLog | None = None,
 ) -> tuple[str, bool]:
-    broker = Broker(config, call_log=call_log)
+    broker = Broker(config, call_log=call_log, publish_runtime_report=False)
     await broker.start()
     try:
         result = await broker.call_tool(tool, arguments, "cli", agent="cli")

@@ -40,6 +40,7 @@ class Broker:
         *,
         require_qualified_sharing: bool = False,
         call_log: McpCallLog | None = None,
+        publish_runtime_report: bool = True,
     ) -> None:
         self.config = config
         self.require_qualified_sharing = require_qualified_sharing
@@ -47,6 +48,7 @@ class Broker:
         self._audit = AuditLog()
         self._call_log = call_log
         self._runtime = RuntimeMetrics(config)
+        self._publish_runtime_report = publish_runtime_report
         self._qualifications: dict[str, QualificationResult] = {}
         self._shared: dict[str, UpstreamWorker] = {}
         self._isolated: dict[tuple[Hashable, str, str], UpstreamWorker] = {}
@@ -65,6 +67,10 @@ class Broker:
 
     def runtime_snapshot(self) -> dict[str, Any]:
         return self._runtime.snapshot()
+
+    def _write_runtime_report(self) -> None:
+        if self._publish_runtime_report:
+            self._runtime.write()
 
     def _worker(
         self,
@@ -91,7 +97,7 @@ class Broker:
             self._runtime.call_started(key)
         else:
             self._runtime.call_finished(key)
-        self._runtime.write()
+        self._write_runtime_report()
 
     def _idle_closed(self, key: str, worker: UpstreamWorker) -> None:
         if self._shared.get(key) is worker:
@@ -101,7 +107,7 @@ class Broker:
                 del self._isolated[instance_key]
         if worker.account_close():
             self._runtime.closed(key)
-            self._runtime.write()
+            self._write_runtime_report()
 
     async def _start_worker(
         self, key: str, inputs: dict[str, str]
@@ -182,7 +188,7 @@ class Broker:
             return
         self._closing = False
         self._started = True
-        self._runtime.write()
+        self._write_runtime_report()
 
     async def _activate(self, key: str, inputs: InputBindings = ()) -> None:
         if key in self._tools_by_upstream:
@@ -206,7 +212,7 @@ class Broker:
                     self._runtime.effective_mode(key, "shared")
                 else:
                     self._runtime.effective_mode(key, "isolated")
-            self._runtime.write()
+            self._write_runtime_report()
 
     async def list_tools(self, selection: Selection) -> list[types.Tool]:
         for key in self.config.upstreams:
@@ -404,7 +410,7 @@ class Broker:
                     *(self._close_worker(key, worker) for key, worker in retired),
                     return_exceptions=True,
                 )
-            self._runtime.write()
+            self._write_runtime_report()
             return True
 
     async def _record_failure(self, key: str, *, crash: bool) -> None:
@@ -593,7 +599,7 @@ class Broker:
             )
             return self._error(f"upstream '{upstream_key}' is unavailable")
         finally:
-            self._runtime.write()
+            self._write_runtime_report()
 
     @staticmethod
     def _error(message: str) -> types.CallToolResult:
@@ -617,4 +623,4 @@ class Broker:
                 return_exceptions=True,
             )
         self._started = False
-        self._runtime.write()
+        self._write_runtime_report()
