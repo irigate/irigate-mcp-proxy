@@ -16,7 +16,12 @@ from irigate.models import BrokerConfig
 from irigate.qualification import QualificationResult, qualify_upstream
 from irigate.runtime_report import RuntimeMetrics
 from irigate.selection import InputBindings, Selection, ToolSelection
-from irigate.upstream import UpstreamError, UpstreamTimeout, UpstreamWorker
+from irigate.upstream import (
+    UpstreamError,
+    UpstreamLaunchError,
+    UpstreamTimeout,
+    UpstreamWorker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +151,8 @@ class Broker:
             self.namespace_tools(key, tools)
         except BaseException as exc:
             await self._close_worker(key, worker)
+            if isinstance(exc, UpstreamLaunchError):
+                raise BrokerInitializationError(str(exc)) from exc
             raise BrokerInitializationError(
                 f"upstream '{key}' failed initialization"
             ) from exc
@@ -551,6 +558,16 @@ class Broker:
                 upstream=upstream_key,
                 tool=tool_name,
                 outcome="timeout",
+                duration_seconds=time.monotonic() - audit_started,
+            )
+            return self._error(str(exc))
+        except UpstreamLaunchError as exc:
+            await self._record_failure(upstream_key, crash=True)
+            self._runtime.agent_failed(agent, upstream_key)
+            self._audit.emit(
+                upstream=upstream_key,
+                tool=tool_name,
+                outcome="upstream_error",
                 duration_seconds=time.monotonic() - audit_started,
             )
             return self._error(str(exc))

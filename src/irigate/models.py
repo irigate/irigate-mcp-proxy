@@ -53,6 +53,7 @@ class UpstreamConfig(BaseModel):
     transport: Literal["stdio"] = "stdio"
     command: str
     args: tuple[str, ...] = ()
+    execution: Literal["native", "wsl-windows"] = "native"
     cwd: Path | None = None
     env: dict[str, EnvironmentReference | str] = Field(default_factory=dict)
     inputs: dict[str, WorkspaceInputConfig] = Field(default_factory=dict)

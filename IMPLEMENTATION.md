@@ -34,6 +34,7 @@ Profiles define:
 - Loopback host and port.
 - Optional short upstream descriptions for progressive metadata discovery.
 - Upstream key, stdio command, arguments, and literal or referenced environment values.
+- Explicit native or WSL-to-Windows process execution mode.
 - Explicit `shareable` mode and qualifier name.
 - Explicit `serial` or `parallel` concurrency.
 - Required per-upstream idle timeout, call timeout, and degradation thresholds.
@@ -48,6 +49,7 @@ Constraints:
 - Commands and arguments must not carry credentials.
 - Environment values are strings. Exact `${ENV_NAME}` values reference the broker process environment; other strings are passed literally. Credentials belong in references, not profile literals.
 - Unknown environment references fail during loading.
+- `execution: wsl-windows` refreshes `WSL_INTEROP` from the newest live `/run/WSL/<pid>_interop` socket immediately before each spawn. Missing live interop fails with a safe restart instruction rather than a raw pipe error.
 - `shareable: true` requires a registered upstream-specific qualifier.
 - Unknown fields, duplicate YAML keys, unsupported transports, and non-loopback binds are errors.
 
@@ -90,6 +92,7 @@ Context7 is the qualified shared upstream in `profiles/mvp.yaml`. Its qualifier 
 - `serial` workers admit one call at a time; `parallel` workers permit concurrent calls.
 - Locks are per upstream. A slow or failed upstream must not block unrelated upstreams.
 - Calls have bounded timeouts and report queue and call durations separately.
+- MCP application errors received for a tool request are returned as tool-level errors and count as failures, not process crashes. MCP connection-closed/session-terminated errors remain command- and environment-free transport failures.
 - Every worker shuts down independently after `idle_timeout_seconds` with no queued or active calls. The next call creates a fresh worker in the same effective sharing mode.
 - Shutdown stops new work, bounds active-call draining, closes MCP sessions, terminates child processes, and kills only children that outlive the termination interval.
 - A serving process atomically publishes `<effective-runtime-report-path>.control` after application startup and removes only its own instance record after cleanup. The credential-free document records its PID, instance ID, version, UTC start time, effective host and port, canonical configuration and report paths, and current start-scoped MCP log file. An omitted override uses the profile-scoped XDG state path; a relative override is anchored to the profile directory.
@@ -150,7 +153,8 @@ MCP call logs are a separate payload-bearing troubleshooting surface. Each serve
 1. Add a unique key and stdio command to a profile without literal credentials.
 2. Default to `shareable: false`.
 3. Select `serial` unless parallel safety is established.
-4. Run profile checking and the relevant compatibility harness.
+4. Set `execution: wsl-windows` when a long-running WSL broker launches a Windows-native executable.
+5. Run profile checking and the relevant compatibility harness.
 
 ### Admit a shareable upstream
 

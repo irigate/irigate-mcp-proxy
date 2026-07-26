@@ -306,6 +306,27 @@ def test_rejects_invalid_commands(tmp_path: Path, command: str) -> None:
         load_config(write_profile(tmp_path, profile))
 
 
+def test_loads_explicit_wsl_windows_execution_mode(tmp_path: Path) -> None:
+    profile = VALID_PROFILE.replace(
+        "    command: python3",
+        "    command: cmd.exe\n    execution: wsl-windows",
+    )
+
+    config = load_config(write_profile(tmp_path, profile))
+
+    assert config.upstreams["echo"].execution == "wsl-windows"
+
+
+def test_rejects_unknown_execution_mode(tmp_path: Path) -> None:
+    profile = VALID_PROFILE.replace(
+        "    command: python3",
+        "    command: python3\n    execution: windows",
+    )
+
+    with pytest.raises(ConfigurationError, match="execution"):
+        load_config(write_profile(tmp_path, profile))
+
+
 def test_reports_missing_environment_names_without_values(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

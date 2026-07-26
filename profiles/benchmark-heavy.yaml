@@ -71,6 +71,7 @@ upstreams:
     transport: stdio
     command: cmd.exe
     args: ["/c", "npx", "-y", "chrome-devtools-mcp@latest", "--autoConnect", "--no-usage-statistics"]
+    execution: wsl-windows
     env: {}
     shareable: false
     concurrency: serial

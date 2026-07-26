@@ -1,23 +1,59 @@
 from __future__ import annotations
 
 import asyncio
+import stat
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
+from mcp.shared.exceptions import McpError
 
 from irigate.models import UpstreamConfig
+
+_TRANSPORT_MCP_ERROR_MESSAGES = frozenset({"Connection closed", "Session terminated"})
 
 
 class UpstreamError(RuntimeError):
     """An upstream failed without exposing its command, environment, or payload."""
 
 
+class UpstreamLaunchError(UpstreamError):
+    """An upstream cannot start until the local process environment is repaired."""
+
+
 class UpstreamTimeout(UpstreamError):
     pass
+
+
+def _wsl_windows_environment(
+    environment: Mapping[str, str], *, runtime_dir: Path = Path("/run/WSL")
+) -> dict[str, str]:
+    """Return child environment using the newest live WSL interop endpoint."""
+
+    candidates: list[tuple[int, Path]] = []
+    try:
+        entries = tuple(runtime_dir.iterdir())
+    except OSError:
+        entries = ()
+    for entry in entries:
+        if not entry.name.endswith("_interop") or not entry.name[:-8].isdigit():
+            continue
+        try:
+            metadata = entry.stat()
+        except OSError:
+            continue
+        if stat.S_ISSOCK(metadata.st_mode):
+            candidates.append((metadata.st_mtime_ns, entry))
+    if not candidates:
+        raise UpstreamLaunchError(
+            "WSL Windows interop is unavailable; restart Irigate from an active WSL session"
+        )
+    endpoint = max(candidates, key=lambda candidate: candidate[0])[1]
+    return {**environment, "WSL_INTEROP": str(endpoint)}
 
 
 @dataclass(slots=True)
@@ -90,11 +126,14 @@ class UpstreamWorker:
                 self.inputs["workspace"] if arg == placeholder else arg
                 for arg in self.config.args
             ]
+            environment = self.environment
+            if self.config.execution == "wsl-windows":
+                environment = _wsl_windows_environment(environment)
             params = StdioServerParameters(
                 command=self.config.command,
                 args=args,
                 cwd=self.config.cwd,
-                env=self.environment,
+                env=environment,
             )
             async with stdio_client(params) as streams:
                 async with ClientSession(streams[0], streams[1]) as session:
@@ -131,7 +170,11 @@ class UpstreamWorker:
                         else:
                             await self._execute_call(session, request)
         except BaseException as exc:
-            safe_error = UpstreamError(f"upstream '{self.key}' is unavailable")
+            safe_error = (
+                exc
+                if isinstance(exc, UpstreamLaunchError)
+                else UpstreamError(f"upstream '{self.key}' is unavailable")
+            )
             if not self._ready.done():
                 self._ready.set_exception(safe_error)
             for result in self._active_results:
@@ -152,6 +195,19 @@ class UpstreamWorker:
             self._event_sink("queue_duration", time.monotonic() - request.enqueued_at)
         try:
             result = await session.call_tool(request.tool, request.arguments)
+        except McpError as exc:
+            if not request.result.done():
+                if exc.error.message in _TRANSPORT_MCP_ERROR_MESSAGES:
+                    request.result.set_exception(
+                        UpstreamError(f"upstream '{self.key}' call failed")
+                    )
+                else:
+                    request.result.set_result(
+                        types.CallToolResult(
+                            content=[types.TextContent(type="text", text=str(exc))],
+                            isError=True,
+                        )
+                    )
         except BaseException as exc:
             if not request.result.done():
                 request.result.set_exception(

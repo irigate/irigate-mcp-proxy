@@ -91,6 +91,7 @@ Project-wide durable preferences (style, workflow, conventions) live in user mem
 - **Progressive disclosure is optional and exact.** The bundled Agent Skill discovers static upstream metadata, one upstream's brief tools, one exact schema, and one exact CLI call. It does not add a daemon, generic dispatcher, or alternate downstream transport; exact tool names remain visible to approval and audit surfaces.
 - **MCP payload logs are explicit local sensitive artifacts.** Every serving start and valid direct CLI call creates a protected log containing complete `tools/call` arguments and responses under `~/.local/log/irigate/<profile>/` by default or the profile's exact `runtime_log_path`; file-count rotation retains 10 starts. Metadata-only audit and runtime-report guarantees remain unchanged. `logs -f` follows one start-scoped file and prints appended records live.
 - **Runtime process state uses XDG state storage.** An omitted `runtime_report_path` resolves to `${XDG_STATE_HOME:-~/.local/state}/irigate/<profile>/runtime-report.json`; its adjacent credential-free process-control document records the effective server identity, listener, configuration, report, and start-scoped log file. Explicit profile paths are exact overrides.
+- **WSL Windows launches are explicit and refresh interop.** Windows-native stdio upstreams launched by WSL declare `execution: wsl-windows`; every spawn selects a live WSL interop socket so a long-running broker does not retain a deleted shell-scoped endpoint.
 
 ## Codebase exploration — mandatory graph-first workflow
 
@@ -122,5 +123,6 @@ Root-owned artifacts:
 
 - `.github/workflows/site-check.yml` — Pull-request and non-main push validation for the static Astro site.
 - `README.md` — Current product boundary, MVP summary, and project status.
+- `CHANGELOG.md` — Versioned release highlights, behavior changes, upgrade notes, and installation artifacts.
 - `IMPLEMENTATION.md` — Current runtime architecture, implementation contracts, extension workflows, and verification.
 - `MARKET-RESEARCH.md` — Market hypothesis, competitive positioning, evidence requirements, and go/no-go criteria.

@@ -15,7 +15,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `app.py` owns the loopback Streamable HTTP application, agent-label propagation, Origin policy, background profile watcher, and serving-process control lifecycle.
 - `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, input-fingerprinted worker selection, and atomic upstream reload.
 - `selection.py` owns typed agent selector parsing, namespaced input validation and canonicalization, normalization, and fail-closed set computation.
-- `upstream.py` owns one stdio process/session worker, worker-local argument rendering, bounded calls, and exact call activity transitions.
+- `upstream.py` owns one stdio process/session worker, explicit native or WSL-to-Windows launch preparation, worker-local argument rendering, bounded calls, and exact call activity transitions.
 - `qualification.py` owns generic checks and reviewed upstream-specific sharing admission.
 - `runtime_report.py` owns metadata-only counters and atomic JSON snapshots.
 - `restart.py` owns credential-free effective server state, strict process identity checks, immediate reload signaling, and graceful stop signaling.
@@ -27,6 +27,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Bind addresses are loopback-only.
 - Upstream transport is stdio-only; changing the transport requires an explicit design decision and updates to `IMPLEMENTATION.md`.
 - Profile environment values are strings: exact `${ENV_NAME}` values resolve from the broker process and all other strings are passed literally. Credentials use references and resolved values never appear in validation output.
+- Windows-native executables launched by WSL require `execution: wsl-windows`; each spawn uses the newest live WSL interop socket instead of the broker's potentially stale inherited endpoint. Missing interop returns a safe restart instruction.
 - Dynamic upstream configuration is limited to a required `workspace` directory input on non-shareable upstreams, rendered through exactly one standalone placeholder. A placeholder may list ordered scoped-to-global sources, such as `{filesystem.workspace|github.workspace|workspace}`; the first supplied source wins and one global value may feed multiple selected upstreams.
 - Each workspace `allowed_roots` entry authorizes its canonical directory and descendants. Leading `~` and braced environment references expand while loading the profile, and environment-derived roots must be absolute.
 - Profile path precedence is explicit `--config`, then `IRIGATE_CONFIG`, then `~/.config/irigate/config.yaml`.
@@ -44,6 +45,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - Process-control documents are adjacent to configured runtime reports, contain only profile/process identity, effective listener and runtime-path metadata, and are treated as untrusted claims until profile, configuration path, and live process identity all match.
 - Process identity accepts `python -m irigate`, direct console-script argv, and Python shebang execution where the absolute `irigate` console-script path is argv 1; unrelated Python scripts remain rejected.
 - A degraded shared upstream remains degraded until process restart.
+- MCP application errors returned for a tool call remain tool-level error results; connection-closed, session-terminated, and process failures remain safe generic upstream failures.
 - Audit records contain timestamp, upstream key, tool name, outcome, and duration only.
 - Arguments, results, environment values, commands, and credentials never enter audit records.
 - Every serving start and valid direct CLI call creates a mode-`0600` MCP payload log under the mode-`0700` `~/.local/log/irigate/<profile>/` default or exact configured `runtime_log_path`; only the newest 10 files per profile are retained.

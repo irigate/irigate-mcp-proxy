@@ -18,6 +18,7 @@ Validated static broker profiles used by the package, runtime qualification, and
 - The MVP code-review-graph upstream uses the installed `code-review-graph` executable directly and resolves the broker user's global `~/.code-review-graph/registry.json`; repository paths passed to its tools remain absolute.
 - Remote Streamable HTTP upstreams use a reviewed stdio bridge because the broker accepts stdio upstreams only.
 - The benchmark filesystem, Git, and Open Scaffold upstreams require a per-session workspace under `${HOME}`. They remain non-shareable and use ordered scoped-to-global sources so one canonical workspace can populate every selected process.
+- Windows-native benchmark upstreams use explicit `execution: wsl-windows` so long-running brokers refresh the WSL interop endpoint before each spawn.
 - `shareable: true` entries name a registered upstream-specific qualifier.
 - Every upstream declares `idle_timeout_seconds`; profiles do not rely on a hidden lifecycle default.
 - Profiles bind to loopback and configure stdio upstreams only.

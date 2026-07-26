@@ -68,13 +68,13 @@ The default profile defines real MCP upstreams. An upstream starts only when an 
 
 ## Installation
 
-The PyPI distribution name is `irigate`, but no release is published there yet. Once a release is available, install it as a standard user application:
+Irigate 0.3.0 is distributed from GitHub Releases. Install the wheel as an isolated user application:
 
 ```bash
-uv tool install irigate
+uv tool install "https://github.com/irigate/irigate-mcp-proxy/releases/download/v0.3.0/irigate-0.3.0-py3-none-any.whl"
 ```
 
-`uv` installs the released version in an isolated tool environment and provides the `irigate` console script from its tool bin directory. Ensure that directory—normally `~/.local/bin`—is on `PATH`; run `uv tool update-shell` if needed. Until the first release, use the snapshot development installation below.
+`uv` installs the released version in an isolated tool environment and provides the `irigate` console script from its tool bin directory. Ensure that directory—normally `~/.local/bin`—is on `PATH`; run `uv tool update-shell` if needed. PyPI publication is not available yet. See [the changelog](CHANGELOG.md) for release highlights and upgrade notes.
 
 ## Development installation
 
@@ -103,7 +103,7 @@ This builds a regular installation from the checkout and copies the package into
 | Developing or debugging Irigate | Live edit (`--editable .`) |
 | Trying the current checkout as a release-like build | Snapshot (`--force --from . irigate`) |
 | Switching back to live edits after a snapshot install | `uv tool install --editable .` (overwrites the snapshot) |
-| Returning to the released version after a checkout install | `uv tool install --force irigate` (after the first PyPI release) |
+| Returning to version 0.3.0 after a checkout install | `uv tool install --force "https://github.com/irigate/irigate-mcp-proxy/releases/download/v0.3.0/irigate-0.3.0-py3-none-any.whl"` |
 
 The `--force` flag in snapshot mode matters when Irigate is already installed in that tool environment: it forces replacement instead of skipping the existing installation. Omit it on a clean install. Remove either installation with `uv tool uninstall irigate`.
 
@@ -206,6 +206,7 @@ An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>
 | `transport` | No | `stdio` | Only `stdio` is supported. |
 | `command` | Yes | — | One executable token. Put command arguments in `args`. |
 | `args` | No | `[]` | Argument list. Environment references and credentials are not accepted. An upstream with `inputs.workspace` must contain exactly one standalone workspace placeholder. Pipe-separated sources are checked left to right and rendered from the canonical session input before process startup. |
+| `execution` | No | `native` | Process-launch environment. Use explicit `wsl-windows` for a Windows executable launched from WSL; Irigate refreshes the per-session WSL interop endpoint before every spawn. |
 | `cwd` | No | Inherit broker directory | Working directory for the stdio process. Migration resolves relative agent paths against the owning user or project directory. |
 | `env` | No | `{}` | Child environment mapping. Values may be literal strings or explicit `${BROKER_ENV_NAME}` references. Use references for credentials so secret values stay out of the profile. |
 | `inputs` | No | `{}` | Per-session input declaration. Only a required `workspace` directory is supported. It needs non-empty `allowed_roots`, requires `shareable: false`, and is immutable after the MCP session is established. |
@@ -218,6 +219,22 @@ An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>
 | `crash_threshold` | No | `2` | Crash count from 1 through 100 that degrades a shared upstream. |
 
 Each spawned worker tracks its own idle timeout. A worker shuts down only when its TTL expires with no queued or active calls. Shared and session-isolated workers expire independently, and the next routed call starts a fresh process in the same effective sharing mode. A long-running call remains governed by `call_timeout_seconds`, not by the idle timeout.
+
+MCP application errors remain tool-level error results and count as call failures rather than process crashes. Connection-closed and session-terminated errors remain transport failures, so crash degradation still reflects lost upstream processes.
+
+Long-running WSL brokers must mark Windows-native upstreams explicitly. WSL creates per-session interop sockets and removes them when their owning shell exits, so a broker that reuses its startup environment can later fail with `Broken pipe`. `execution: wsl-windows` selects the newest live `/run/WSL/<pid>_interop` socket for each process spawn. If no live endpoint exists, Irigate returns an actionable restart error without exposing the command or child environment.
+
+```yaml
+upstreams:
+  pencil:
+    command: /mnt/c/Users/example/AppData/Local/Programs/Pen/resources/app.asar.unpacked/out/mcp-server-windows-x64.exe
+    args: ["--app", "desktop"]
+    execution: wsl-windows
+    env: {}
+    shareable: false
+    concurrency: serial
+    idle_timeout_seconds: 300
+```
 
 Literal strings are passed directly to the child process. `${ENV_NAME}` values are resolved from the broker process without being written into the profile, audit log, runtime report, or validation output:
 
