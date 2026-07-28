@@ -303,9 +303,48 @@ uv run --frozen irigate --version
 uv run --frozen irigate --help
 ```
 
-The root help lists `status`, `reload`, and `stop`; the reload and stop help output also identifies the running Irigate version so a stale installed executable is visible immediately.
+The root help lists `status`, `reload`, `stop`, and `systemd`; the reload and stop help output also identifies the running Irigate version so a stale installed executable is visible immediately.
 
 The broker listens at `http://127.0.0.1:8765/mcp` without starting upstreams. A client may use the bare URL to expose all configured upstreams, or add a selector to narrow the set. Qualification, schema discovery, and process startup happen on first use. Each upstream's `idle_timeout_seconds` shuts down that process independently after inactivity; the next routed call starts a fresh process without changing the downstream session.
+
+### systemd user service
+
+On a host with a running systemd user manager, install the selected profile as the fixed `irigate.service` unit:
+
+```bash
+irigate systemd setup --config ~/.config/irigate/config.yaml
+```
+
+Setup writes `~/.config/systemd/user/irigate.service` and `~/.config/irigate/irigate.env`, then runs `systemctl --user daemon-reload` and `systemctl --user enable --now irigate.service`. The unit starts the same Python environment that ran setup and executes `python -m irigate --config <selected-profile>`. Its `ExecReload` invokes the existing connection-preserving `irigate reload` path.
+
+The environment file is mode `0600` and contains only the current values for names explicitly referenced by upstream `env` fields. It never contains literal profile values, command arguments, or values in CLI output. After changing an exported credential or another referenced environment value, synchronize it from a shell where every required value is set:
+
+```bash
+irigate systemd sync --config ~/.config/irigate/config.yaml
+```
+
+`sync` rewrites both files, reloads the user manager, and restarts the service only when it is already active. A connection-preserving reload cannot refresh a running process's environment; use `sync` for changed environment values and `irigate systemd reload` for a profile-only reload through the installed unit. Run `systemd setup` first when the service has not been enabled.
+
+Use systemd for normal service lifecycle operations:
+
+```bash
+# Inspect state and follow the service journal.
+systemctl --user status irigate.service
+journalctl --user -u irigate.service -f
+
+# Start, stop, or restart the installed broker.
+systemctl --user start irigate.service
+systemctl --user stop irigate.service
+systemctl --user restart irigate.service
+
+# Start automatically at user-login, or disable and stop it.
+systemctl --user enable --now irigate.service
+systemctl --user disable --now irigate.service
+```
+
+`systemctl --user reload irigate.service` and `irigate systemd reload --config ~/.config/irigate/config.yaml` both use the unit's `ExecReload` and preserve active connections when the updated profile is valid. Use `restart` when changing startup-bound fields such as `host`, `port`, runtime paths, or after upgrading Irigate. `irigate stop` is for a foreground broker; use `systemctl --user stop` for the managed service so systemd records its state correctly.
+
+The fixed `irigate.service` represents one selected profile. Running `setup` or `sync` with a different `--config` replaces the unit's profile. To remove the managed service, disable it, delete `~/.config/systemd/user/irigate.service` and `~/.config/irigate/irigate.env`, then run `systemctl --user daemon-reload`.
 
 ### Agent-side selection
 

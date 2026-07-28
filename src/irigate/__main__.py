@@ -42,6 +42,12 @@ from irigate.restart import (
     stop_running,
 )
 from irigate.selection import SelectionError, parse_selection
+from irigate.systemd import (
+    SystemdError,
+    reload_systemd_service,
+    setup_systemd_service,
+    sync_systemd_service,
+)
 
 
 CONFIG_ENVIRONMENT_VARIABLE = "IRIGATE_CONFIG"
@@ -150,6 +156,17 @@ def build_parser() -> argparse.ArgumentParser:
         description=f"Irigate {__version__}: gracefully stop a running Irigate server",
     )
     stop.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
+    systemd = subcommands.add_parser(
+        "systemd", help="install, synchronize, or reload the systemd user service"
+    )
+    systemd_actions = systemd.add_subparsers(dest="systemd_command", required=True)
+    for action, help_text in (
+        ("setup", "write, enable, and start irigate.service"),
+        ("sync", "mirror referenced environment values and restart an active service"),
+        ("reload", "request the service's connection-preserving Irigate reload"),
+    ):
+        command = systemd_actions.add_parser(action, help=help_text)
+        command.add_argument("--config", default=argparse.SUPPRESS, help=CONFIG_PATH_HELP)
     subcommands.add_parser(
         "skill-path", help="print the bundled progressive-disclosure Agent Skill path"
     )
@@ -490,6 +507,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "logs",
             "reload",
             "stop",
+            "systemd",
         }:
             config.resolve_environment()
     except ConfigurationError as exc:
@@ -648,6 +666,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             else format_server_status(status)
         )
         print(output)
+        return 0
+
+    if args.command == "systemd":
+        try:
+            if args.systemd_command == "setup":
+                paths = setup_systemd_service(
+                    config,
+                    config_path,
+                    python=Path(sys.executable),
+                )
+                print(f"service={paths.service}")
+                print(f"environment={paths.environment}")
+                print("Irigate systemd service enabled and started")
+            elif args.systemd_command == "sync":
+                result = sync_systemd_service(
+                    config,
+                    config_path,
+                    python=Path(sys.executable),
+                )
+                print(f"service={result.paths.service}")
+                print(f"environment={result.paths.environment}")
+                print(f"restarted={str(result.restarted).lower()}")
+            else:
+                reload_systemd_service()
+                print("Irigate systemd reload requested")
+        except (ConfigurationError, OSError, SystemdError) as exc:
+            print(f"systemd error: {exc}", file=sys.stderr)
+            return 1
         return 0
 
     if args.command == "stop":

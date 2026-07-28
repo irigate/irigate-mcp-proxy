@@ -24,6 +24,7 @@ It is not an enterprise gateway. Remote access, tenant identity, authorization, 
 9. `migration` discovers common installed-agent configuration paths or accepts one explicit file, converts selected stdio definitions into isolated Irigate upstreams, and rewrites each agent to use the loopback Streamable HTTP endpoint.
 10. `restart` maintains credential-free effective server state beside the runtime report so a separate CLI process can inspect the listener or validate and signal an immediate reload or graceful stop of the selected server.
 11. The optional bundled Agent Skill uses CLI-only progressive disclosure: static upstream metadata, one upstream's brief tool list, one exact schema, then one exact call. It does not add a downstream transport or generic dispatcher.
+12. `systemd` writes a fixed user unit and a private file containing only explicitly referenced broker-environment values. Setup enables and starts the unit; sync restarts an active unit after environment changes; unit reload delegates to the existing connection-preserving process-control path.
 
 ## Configuration contract
 
@@ -111,6 +112,8 @@ Context7 is the qualified shared upstream in `profiles/mvp.yaml`. Its qualifier 
 - `irigate status` loads the profile without resolving upstream environments, validates profile and canonical configuration identity, verifies the recorded PID still runs Irigate, and reports the process's effective startup metadata. Missing or stale control state reports `stopped`, independently of any retained runtime report.
 - `irigate reload` loads the profile without resolving upstream environments, validates the control document against the profile and canonical configuration path, verifies the PID still runs Irigate, and sends `SIGHUP`. The serving process wakes its existing atomic reload path immediately; profile validation or activation failures still preserve the last valid configuration.
 - `irigate stop` loads the profile without resolving upstream environments, validates the control document against the profile and canonical configuration path, verifies the PID still runs Irigate, sends `SIGTERM`, and waits for owned control-state removal. Missing, stale, mismatched, or timed-out state fails closed.
+- `irigate systemd setup --config <profile>` writes `~/.config/systemd/user/irigate.service` and mode-`0600` `~/.config/irigate/irigate.env`, with one current value for each upstream `env` reference, then invokes `systemctl --user daemon-reload` and `enable --now`. The unit's `ExecStart` runs the setup interpreter as `python -m irigate --config <canonical-profile>` and its `ExecReload` invokes `irigate reload` through that same interpreter.
+- `irigate systemd sync --config <profile>` rewrites those files and daemon-reloads the manager. It restarts only an active unit because systemd reload and the broker's `SIGHUP` path do not change an already running process environment. `irigate systemd reload` is reserved for connection-preserving profile changes and delegates to `systemctl --user reload irigate.service`.
 - Client disconnects and repeated broker lifecycles must leave no orphan upstream processes.
 - Reload drains retired workers after the replacement routing table is active; unchanged workers continue without restart.
 
@@ -151,9 +154,10 @@ MCP call logs are a separate payload-bearing troubleshooting surface. Each serve
 - `src/irigate/qualification.py` — generic checks, qualifier registry, and sharing admission.
 - `src/irigate/runtime_report.py` — counters and atomic metadata-only snapshots.
 - `src/irigate/restart.py` — credential-free effective server documents, process identity validation, immediate reload signaling, and graceful stop signaling.
+- `src/irigate/systemd.py` — fixed user-unit rendering, private referenced-environment mirroring, and `systemctl --user` lifecycle calls.
 - `src/irigate/audit.py` — one metadata-only call record per outcome.
 - `src/irigate/logs.py` — protected start-scoped MCP payload logs, file-count rotation, latest-log resolution, and follow iteration.
-- `src/irigate/__main__.py` — `--check`, progressive upstream/tool/schema discovery, bundled-skill location, direct tool calls, `ps`, `status`, `logs`, `reload`, `stop`, `qualify`, and serving CLI contracts.
+- `src/irigate/__main__.py` — `--check`, progressive upstream/tool/schema discovery, bundled-skill location, direct tool calls, `ps`, `status`, `logs`, `reload`, `stop`, `systemd`, `qualify`, and serving CLI contracts.
 - `src/irigate/agent_skill/SKILL.md` — optional AgentSkills-compatible progressive-disclosure workflow and safety contract.
 - `profiles/` — static runtime and benchmark profiles.
 - `scripts/` — compatibility and resource-measurement harnesses.

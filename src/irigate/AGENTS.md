@@ -12,7 +12,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `workspace.py` owns strict canonical directory resolution and segment-based `allowed_roots` authorization.
 - `config.py` owns duplicate-safe YAML loading and broker-environment resolution.
 - `migration.py` owns common agent-config discovery, JSON/YAML/TOML conversion, backup creation, and atomic replacement.
-- `__main__.py` owns serving, validation, qualification, progressive runtime discovery, bundled-skill location, direct tool-call, process-report, payload-log inspection, and process-control console contracts.
+- `__main__.py` owns serving, validation, qualification, progressive runtime discovery, bundled-skill location, direct tool-call, process-report, payload-log inspection, process-control, and systemd-user-service console contracts.
 - `agent_skill/SKILL.md` owns the optional AgentSkills-compatible progressive-disclosure workflow.
 - `app.py` owns the loopback Streamable HTTP application, agent-label propagation, Origin policy, background profile watcher, and serving-process control lifecycle.
 - `broker.py` owns selection-scoped deferred activation, tool aggregation, exact namespaced routing, input-fingerprinted worker selection, and atomic upstream reload.
@@ -21,6 +21,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `qualification.py` owns generic checks and reviewed upstream-specific sharing admission.
 - `runtime_report.py` owns metadata-only counters and atomic JSON snapshots.
 - `restart.py` owns credential-free effective server state, strict process identity checks, immediate reload signaling, and graceful stop signaling.
+- `systemd.py` owns user-unit rendering, private broker-environment mirroring, and guarded `systemctl --user` setup, sync, and reload calls.
 - `audit.py` owns one metadata-only JSON-line record per completed or rejected call.
 - `logs.py` owns protected start-scoped MCP call/response logs, file-count rotation, latest-log selection, and follow iteration.
 
@@ -74,6 +75,7 @@ Production Irigate package: validated configuration, loopback MCP transport, det
 - `logs` prints the selected profile's newest MCP payload log without resolving environments or starting upstreams; `logs -f` flushes appended records live to stdout and continues following that start-scoped file.
 - `reload` uses the effective configured or default runtime report, does not resolve upstream environments, signals only a matching live Irigate process, and wakes the existing connection-preserving profile reload path.
 - `stop` uses the effective configured or default runtime report, does not resolve upstream environments, signals only a matching live Irigate process, waits for graceful cleanup, and fails if shutdown is not observed.
+- `systemd setup` writes the fixed `~/.config/systemd/user/irigate.service` unit and mode-`0600` `~/.config/irigate/irigate.env`, mirroring only names referenced by upstream `env` fields; it then enables and starts the service. `systemd sync` daemon-reloads and restarts an active service so new environment values take effect. `systemd reload` runs the unit's `ExecReload`, which uses the existing connection-preserving `irigate reload` path and cannot refresh service environment values.
 - Migration accepts one explicit source without discovery, otherwise requires interactive selection or `--all`; it migrates stdio entries only, preserves unrelated settings and remote entries, and validates all outputs before writing.
 - Migration never copies agent-config environment values. Every child variable becomes a broker-process `${ENV_NAME}` reference and must already exist in the migration environment.
 - Existing agent and Irigate files receive adjacent `.irigate.bak` backups; existing backups are never overwritten.
