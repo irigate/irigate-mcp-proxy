@@ -4,6 +4,21 @@ All notable changes to Irigate are documented here. Releases follow Semantic Ver
 
 ## Unreleased
 
+## [0.5.0] - 2026-07-28
+
+Irigate 0.5.0 adds a systemd user-service workflow for durable local broker operation without putting credentials in a unit file.
+
+### Added
+
+- `irigate systemd setup`, `sync`, and `reload` manage a fixed `irigate.service` user unit, mirror only referenced broker environment variables into a mode-`0600` environment file, and distinguish environment-refresh restarts from connection-preserving profile reloads.
+- Operator documentation for service start, stop, restart, status, journal inspection, enable/disable, profile reload, environment synchronization, and removal.
+
+### Upgrade notes
+
+- Run `irigate systemd setup --config <profile>` once to install and enable the user service. Existing foreground brokers are not adopted automatically.
+- Use `irigate systemd sync --config <profile>` after referenced environment values change; it restarts an active service because reload cannot alter a process environment.
+- Use `systemctl --user restart irigate.service` after upgrading Irigate or changing startup-bound listener or runtime-path fields.
+
 ## [0.4.2] - 2026-07-26
 
 Irigate 0.4.2 republishes the current README to PyPI and makes the project mark load from an absolute public URL.
@@ -132,6 +147,7 @@ uv tool install "https://github.com/irigate/irigate-mcp-proxy/releases/download/
 irigate --version
 ```
 
+[0.5.0]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.5.0
 [0.4.2]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.4.2
 [0.4.1]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.4.1
 [0.4.0]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.4.0
