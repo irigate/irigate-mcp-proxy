@@ -230,12 +230,12 @@ An upstream key becomes the prefix in every exposed `<upstream-key>__<tool-name>
 | `concurrency` | No | `serial` | `serial` executes one call at a time; `parallel` permits concurrent calls within the worker. |
 | `call_timeout_seconds` | No | `30` | Per-call timeout greater than 0 and no more than 3600 seconds. It does not control process idleness. |
 | `idle_timeout_seconds` | Yes | — | Per-process inactivity TTL greater than 0 and no more than 86400 seconds. |
-| `failure_threshold` | No | `5` | Error count from 1 through 100 that degrades a shared upstream. |
-| `crash_threshold` | No | `2` | Crash count from 1 through 100 that degrades a shared upstream. |
+| `failure_threshold` | No | `5` | Transport-failure count from 1 through 100 that degrades a shared upstream. Tool-level MCP application errors do not increment it. |
+| `crash_threshold` | No | `2` | Process-crash count from 1 through 100 that degrades a shared upstream. |
 
 Each spawned worker tracks its own idle timeout. A worker shuts down only when its TTL expires with no queued or active calls. Shared and session-isolated workers expire independently, and the next routed call starts a fresh process in the same effective sharing mode. A long-running call remains governed by `call_timeout_seconds`, not by the idle timeout.
 
-MCP application errors remain tool-level error results and count as call failures rather than process crashes. Connection-closed and session-terminated errors remain transport failures, so crash degradation still reflects lost upstream processes.
+MCP application errors remain tool-level error results. They contribute to the calling agent's failed-call metrics but do not increment upstream failure or crash counters, so a healthy shared worker remains reusable. Connection-closed and session-terminated errors remain transport failures, while crash degradation reflects lost upstream processes.
 
 Long-running WSL brokers must mark Windows-native upstreams explicitly. WSL creates per-session interop sockets and removes them when their owning shell exits, so a broker that reuses its startup environment can later fail with `Broken pipe`. `execution: wsl-windows` selects the newest live `/run/WSL/<pid>_interop` socket for each process spawn. If no live endpoint exists, Irigate returns an actionable restart error without exposing the command or child environment.
 
@@ -315,7 +315,7 @@ On a host with a running systemd user manager, install the selected profile as t
 irigate systemd setup --config ~/.config/irigate/config.yaml
 ```
 
-Setup writes `~/.config/systemd/user/irigate.service` and `~/.config/irigate/irigate.env`, then runs `systemctl --user daemon-reload` and `systemctl --user enable --now irigate.service`. The unit starts the same Python environment that ran setup and executes `python -m irigate --config <selected-profile>`. Its `ExecReload` invokes the existing connection-preserving `irigate reload` path.
+Setup writes `~/.config/systemd/user/irigate.service` and `~/.config/irigate/irigate.env`, then runs `systemctl --user daemon-reload` and `systemctl --user enable --now irigate.service`. The unit preserves the setup interpreter path without resolving its symlinks, so a uv tool continues to run inside its tool environment, then executes `python -m irigate --config <selected-profile>`. Its `ExecReload` invokes the existing connection-preserving `irigate reload` path.
 
 The environment file is mode `0600` and contains only the current values for names explicitly referenced by upstream `env` fields. It never contains literal profile values, command arguments, or values in CLI output. After changing an exported credential or another referenced environment value, synchronize it from a shell where every required value is set:
 
@@ -323,7 +323,7 @@ The environment file is mode `0600` and contains only the current values for nam
 irigate systemd sync --config ~/.config/irigate/config.yaml
 ```
 
-`sync` rewrites both files, reloads the user manager, and restarts the service only when it is already active. A connection-preserving reload cannot refresh a running process's environment; use `sync` for changed environment values and `irigate systemd reload` for a profile-only reload through the installed unit. Run `systemd setup` first when the service has not been enabled.
+`sync` rewrites both files, reloads the user manager, and restarts the service only when it is already active. A connection-preserving reload cannot refresh a running process's environment; use `sync` for changed environment values and `irigate systemd reload` for a profile-only reload through the installed unit. Run `systemd setup` first when the service has not been enabled. After upgrading from 0.5.0, run `sync` once to repair the generated unit; if it reports `restarted=false`, start the rewritten service with `systemctl --user start irigate.service`.
 
 Use systemd for normal service lifecycle operations:
 

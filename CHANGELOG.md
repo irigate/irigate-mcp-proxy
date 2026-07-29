@@ -4,6 +4,19 @@ All notable changes to Irigate are documented here. Releases follow Semantic Ver
 
 ## Unreleased
 
+## [0.5.1] - 2026-07-29
+
+Irigate 0.5.1 fixes two reliability boundaries: systemd now retains the uv tool environment that owns the installed broker, and MCP application errors no longer degrade a healthy shared upstream.
+
+### Fixed
+
+- `irigate systemd setup` and `sync` preserve a symlinked uv tool interpreter path in the generated unit instead of resolving it to a base Python environment where Irigate is not installed.
+- Tool-level MCP application errors remain visible as failed calls but no longer increment a shared upstream's failure or crash counters, so they cannot open its degradation breaker.
+
+### Upgrade notes
+
+- After upgrading a systemd-managed 0.5.0 installation, run `irigate systemd sync --config <profile>` from a shell with every referenced environment value. If it reports `restarted=false`, run `systemctl --user start irigate.service` to start the rewritten unit.
+
 ## [0.5.0] - 2026-07-28
 
 Irigate 0.5.0 adds a systemd user-service workflow for durable local broker operation without putting credentials in a unit file.
@@ -147,6 +160,7 @@ uv tool install "https://github.com/irigate/irigate-mcp-proxy/releases/download/
 irigate --version
 ```
 
+[0.5.1]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.5.1
 [0.5.0]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.5.0
 [0.4.2]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.4.2
 [0.4.1]: https://github.com/irigate/irigate-mcp-proxy/releases/tag/v0.4.1
