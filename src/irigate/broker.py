@@ -549,7 +549,6 @@ class Broker:
                     upstream_key, "call_duration", time.monotonic() - started
                 )
             if result.isError:
-                await self._record_failure(upstream_key, crash=False)
                 self._runtime.agent_failed(agent, upstream_key)
             self._audit.emit(
                 upstream=upstream_key,
@@ -569,7 +568,6 @@ class Broker:
             )
             return self._error(str(exc))
         except UpstreamArgumentError as exc:
-            await self._record_failure(upstream_key, crash=False)
             self._runtime.agent_failed(agent, upstream_key)
             self._audit.emit(
                 upstream=upstream_key,

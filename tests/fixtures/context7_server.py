@@ -15,6 +15,11 @@ def query_docs(library_id: str = "/test/library") -> dict[str, str]:
     return {"content": library_id}
 
 
+@server.tool(name="application-error")
+def application_error() -> None:
+    raise ValueError("intentional application error")
+
+
 @server.tool(name="terminate")
 def terminate() -> None:
     import os

@@ -188,6 +188,30 @@ async def test_failure_threshold_degrades_shared_upstream(tmp_path: Path) -> Non
     assert report["upstreams"]["context7"]["crashes"] >= 1
 
 
+async def test_application_error_does_not_degrade_shared_upstream(tmp_path: Path) -> None:
+    definition = context7()
+    definition["failure_threshold"] = 1
+    definition["crash_threshold"] = 1
+    config = with_report(config_for(8765, {"context7": definition}), tmp_path / "report.json")
+    broker = Broker(config)
+    await broker.start()
+    try:
+        original = await broker.worker_for("context7", "client-a")
+        failed = await broker.call_tool("context7__application-error", {}, "client-a")
+        reused = await broker.worker_for("context7", "client-b")
+        assert failed.isError is True
+        assert reused is original
+    finally:
+        await broker.close()
+
+    assert config.runtime_report_path is not None
+    report = json.loads(config.runtime_report_path.read_text())
+    upstream_report = report["upstreams"]["context7"]
+    assert upstream_report["effective_mode"] == "shared"
+    assert upstream_report["failures"] == 0
+    assert upstream_report["crashes"] == 0
+
+
 async def test_report_contains_duration_counters(tmp_path: Path) -> None:
     config = with_report(config_for(8765, {"echo": upstream()}), tmp_path / "report.json")
     broker = Broker(config)
