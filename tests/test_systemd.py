@@ -75,14 +75,38 @@ def test_sync_writes_private_environment_and_restarts_active_service(tmp_path: P
     assert stat.S_IMODE(destination.environment.parent.stat().st_mode) == 0o700
     unit = destination.service.read_text(encoding="utf-8")
     assert "EnvironmentFile=%h/.config/irigate/irigate.env" in unit
-    assert f'ExecStart="{Path(sys.executable).resolve()}" -m irigate --config "{profile.resolve()}"' in unit
-    assert f'ExecReload="{Path(sys.executable).resolve()}" -m irigate reload --config "{profile.resolve()}"' in unit
+    assert f'ExecStart="{Path(sys.executable).absolute()}" -m irigate --config "{profile.resolve()}"' in unit
+    assert f'ExecReload="{Path(sys.executable).absolute()}" -m irigate reload --config "{profile.resolve()}"' in unit
     assert 'quote "' not in unit
     assert runner.calls == [
         ["systemctl", "--user", "daemon-reload"],
         ["systemctl", "--user", "is-active", "--quiet", "irigate.service"],
         ["systemctl", "--user", "restart", "irigate.service"],
     ]
+
+
+def test_sync_preserves_the_configured_python_symlink(tmp_path: Path) -> None:
+    destination = paths(tmp_path)
+    profile = tmp_path / "profile.yaml"
+    target = tmp_path / "uv" / "python"
+    target.parent.mkdir()
+    target.touch()
+    tool_python = tmp_path / "tool" / "bin" / "python"
+    tool_python.parent.mkdir(parents=True)
+    tool_python.symlink_to(target)
+
+    sync_systemd_service(
+        config(),
+        profile,
+        python=tool_python,
+        environ={"API_TOKEN": "synthetic"},
+        paths=destination,
+        runner=Runner(),
+    )
+
+    unit = destination.service.read_text(encoding="utf-8")
+    assert f'ExecStart="{tool_python}" -m irigate --config "{profile.resolve()}"' in unit
+    assert f'ExecReload="{tool_python}" -m irigate reload --config "{profile.resolve()}"' in unit
 
 
 def test_sync_leaves_an_inactive_service_stopped(tmp_path: Path) -> None:

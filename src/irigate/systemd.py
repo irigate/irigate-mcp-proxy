@@ -81,7 +81,10 @@ def _environment_document(
 
 def _service_document(config_path: Path, python: Path) -> str:
     config = str(config_path.resolve())
-    command = _systemd_quote(str(python.resolve()))
+    # A uv tool's interpreter symlink selects its virtual environment.
+    # Resolving it runs Python outside that environment, where ``irigate`` is
+    # not installed.
+    command = _systemd_quote(str(python.absolute()))
     profile = _systemd_quote(config)
     return "\n".join(
         (
